@@ -4,6 +4,7 @@ mod models;
 mod parser;
 mod normalizer;
 mod relationships;
+mod arbitrage;
 
 use database::{
     insert_probability_snapshot_if_changed, insert_relationship, upsert_market,
@@ -13,6 +14,14 @@ use models::{Market, MarketRelationship};
 use normalizer::normalize_market;
 use relationships::build_relationships;
 use sqlx::PgPool;
+use arbitrage::{
+    calculate_edge,
+    determine_signal,
+    expected_probability,
+};
+use database::insert_signal;
+use models::ArbitrageSignal;
+use rust_decimal_macros::dec;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -73,6 +82,44 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
+    let parent_probability = dec!(0.70);
+    let observed_probability = dec!(0.15);
+    let expected =
+        expected_probability(
+            parent_probability
+        );
+    let edge =
+        calculate_edge(
+            expected,
+            observed_probability
+        );
+    let signal =
+        determine_signal(edge);
+
+        let arbitrage_signal =
+        ArbitrageSignal {
+    
+            parent_market:
+                "Trump Wins".to_string(),
+    
+            related_market:
+                "Republican Senate".to_string(),
+    
+            expected_probability:
+                expected,
+
+            observed_probability,
+            edge,
+            signal,
+        };
+
+        insert_signal(
+            &pool,
+            &arbitrage_signal
+        )
+        .await?;
+
+
     println!();
     println!("Summary:");
     println!("  Markets fetched: {}", markets.len());
@@ -81,6 +128,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("  Probability snapshots skipped (unchanged): {snapshots_skipped}");
     println!("  Relationships inserted: {relationships_inserted}");
     println!("  Relationships skipped (already exist): {relationships_skipped}");
+    println!("{:#?}", arbitrage_signal);
 
     Ok(())
 }

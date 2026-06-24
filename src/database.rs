@@ -1,5 +1,6 @@
 use crate::models::{Market, MarketRelationship, ProbabilitySnapshot};
 use sqlx::PgPool;
+use crate::models::ArbitrageSignal;
 
 pub async fn upsert_market(pool: &PgPool, market: &Market) -> Result<bool, sqlx::Error> {
     let result = sqlx::query(
@@ -93,4 +94,35 @@ pub async fn insert_relationship(
     .await?;
 
     Ok(result.rows_affected() > 0)
+}
+
+
+pub async fn insert_signal(
+    pool: &PgPool,
+    signal: &ArbitrageSignal,
+) -> Result<(), sqlx::Error> {
+
+    sqlx::query(
+        r#"
+        INSERT INTO arbitrage_signals(
+            parent_market,
+            related_market,
+            expected_probability,
+            observed_probability,
+            edge,
+            signal
+        )
+        VALUES ($1,$2,$3,$4,$5,$6)
+        "#
+    )
+    .bind(&signal.parent_market)
+    .bind(&signal.related_market)
+    .bind(signal.expected_probability)
+    .bind(signal.observed_probability)
+    .bind(signal.edge)
+    .bind(&signal.signal)
+    .execute(pool)
+    .await?;
+
+    Ok(())
 }

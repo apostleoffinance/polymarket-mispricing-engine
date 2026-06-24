@@ -35,3 +35,14 @@ pub struct MarketRelationship {
     pub related_market: String,
     pub relationship_type: String,
 }
+
+#[derive(Debug)]
+pub struct ArbitrageSignal {
+
+    pub parent_market: String,
+    pub related_market: String,
+    pub expected_probability: Decimal,
+    pub observed_probability: Decimal,
+    pub edge: Decimal,
+    pub signal: String,
+}
