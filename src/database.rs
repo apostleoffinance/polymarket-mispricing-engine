@@ -1,12 +1,8 @@
-use crate::models::{Market, ProbabilitySnapshot};
+use crate::models::{Market, MarketRelationship, ProbabilitySnapshot};
 use sqlx::PgPool;
-use crate::models::MarketRelationship;
 
-pub async fn insert_market(
-    pool: &PgPool,
-    market: &Market,
-) -> Result<(), sqlx::Error> {
-    sqlx::query(
+pub async fn upsert_market(pool: &PgPool, market: &Market) -> Result<bool, sqlx::Error> {
+    let result = sqlx::query(
         r#"
         INSERT INTO markets(
             id,
@@ -16,9 +12,13 @@ pub async fn insert_market(
             active,
             closed
         )
-        VALUES ($1,$2,$3,$4,$5,$6)
-        ON CONFLICT (id)
-        DO NOTHING
+        VALUES ($1, $2, $3, $4, $5, $6)
+        ON CONFLICT (id) DO UPDATE SET
+            question = EXCLUDED.question,
+            volume = EXCLUDED.volume,
+            liquidity = EXCLUDED.liquidity,
+            active = EXCLUDED.active,
+            closed = EXCLUDED.closed
         "#
     )
     .bind(&market.id)
@@ -30,15 +30,15 @@ pub async fn insert_market(
     .execute(pool)
     .await?;
 
-    Ok(())
+    Ok(result.rows_affected() > 0)
 }
 
-pub async fn insert_probability_snapshot(
+/// Inserts a snapshot only when probabilities changed since the latest row for this market.
+pub async fn insert_probability_snapshot_if_changed(
     pool: &PgPool,
     snapshot: &ProbabilitySnapshot,
-) -> Result<(), sqlx::Error> {
-
-    sqlx::query(
+) -> Result<bool, sqlx::Error> {
+    let result = sqlx::query(
         r#"
         INSERT INTO probability_history(
             market_id,
@@ -46,7 +46,19 @@ pub async fn insert_probability_snapshot(
             yes_probability,
             no_probability
         )
-        VALUES ($1,$2,$3,$4)
+        SELECT $1, $2, $3, $4
+        WHERE NOT EXISTS (
+            SELECT 1
+            FROM probability_history
+            WHERE market_id = $1
+              AND yes_probability = $3
+              AND no_probability = $4
+              AND recorded_at = (
+                  SELECT MAX(recorded_at)
+                  FROM probability_history
+                  WHERE market_id = $1
+              )
+        )
         "#
     )
     .bind(&snapshot.market_id)
@@ -56,23 +68,22 @@ pub async fn insert_probability_snapshot(
     .execute(pool)
     .await?;
 
-    Ok(())
+    Ok(result.rows_affected() > 0)
 }
-
 
 pub async fn insert_relationship(
     pool: &PgPool,
     relationship: &MarketRelationship,
-) -> Result<(), sqlx::Error> {
-
-    sqlx::query(
+) -> Result<bool, sqlx::Error> {
+    let result = sqlx::query(
         r#"
         INSERT INTO market_relationships(
             parent_market,
             related_market,
             relationship_type
         )
-        VALUES ($1,$2,$3)
+        VALUES ($1, $2, $3)
+        ON CONFLICT (parent_market, related_market, relationship_type) DO NOTHING
         "#
     )
     .bind(&relationship.parent_market)
@@ -81,5 +92,5 @@ pub async fn insert_relationship(
     .execute(pool)
     .await?;
 
-    Ok(())
+    Ok(result.rows_affected() > 0)
 }
