@@ -1,88 +1,75 @@
-use serde::Deserialize;
-use rust_decimal::Decimal;
+mod database;
+mod http_client;
+mod models;
+mod parser;
+mod normalizer;
+mod relationships;
+
+use database::{insert_market, insert_probability_snapshot, insert_relationship};
+use http_client::{build_client, get_with_retry};
+use models::{Market, MarketRelationship};
+use normalizer::normalize_market;
+use relationships::build_relationships;
 use sqlx::PgPool;
-
-#[derive(Debug, Deserialize)]
-struct Market {
-    id: String,
-    question: String,
-    volume: Decimal,
-    liquidity: Decimal,
-    active: bool,
-    closed: bool,
-}
-
-
-async fn insert_market(
-    pool: &PgPool,
-    market: &Market,
-) -> Result<(), sqlx::Error> {
-
-    sqlx::query(
-        r#"
-        INSERT INTO markets(
-            id,
-            question,
-            volume,
-            liquidity,
-            active,
-            closed
-        )
-        VALUES ($1,$2,$3,$4,$5,$6)
-        ON CONFLICT (id)
-        DO NOTHING
-        "#
-    )
-    .bind(&market.id)
-    .bind(&market.question)
-    .bind(&market.volume)
-    .bind(&market.liquidity)
-    .bind(market.active)
-    .bind(market.closed)
-    .execute(pool)
-    .await?;
-
-    Ok(())
-}
-
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-
-    // Connection string
     dotenvy::dotenv().ok();
 
-    let database_url =
-        std::env::var("DATABASE_URL")?;
+    let database_url = std::env::var("DATABASE_URL")?;
 
-    // Connect to Postgres
-    let pool = PgPool::connect(&database_url)
-        .await?;
+    let pool = PgPool::connect(&database_url).await?;
 
     println!("Connected to PostgreSQL");
 
     let url =
         "https://gamma-api.polymarket.com/markets?active=true&closed=false&limit=100";
 
-    let markets: Vec<Market> = reqwest::get(url)
-        .await?
-        .json()
-        .await?;
+    let client = build_client()?;
+    let body = get_with_retry(&client, url, 3).await?;
+    let markets: Vec<Market> = serde_json::from_str(&body)?;
 
-    // println!("{:#?}", markets);
-    for market in &markets {
+    for market in markets {
+        // Store raw market metadata (id, question, volume, liquidity, active, closed)
+        insert_market(&pool, &market).await?;
 
-        insert_market(
-            &pool,
-            market
-        )
-        .await?;
-    
+        // Store normalized probabilities snapshot (yes/no)
+        let snapshot = normalize_market(&market)?;
+
+        insert_probability_snapshot(&pool, &snapshot).await?;
+
         println!(
-            "Stored Market {} - {}",
-            market.id,
-            market.question
+            "{} | YES={} | NO={}",
+            snapshot.question, snapshot.yes_probability, snapshot.no_probability
         );
+    }
+
+    let graph =
+    build_relationships();
+
+    for (parent, children) in graph {
+
+        for child in children {
+    
+            let relationship =
+                MarketRelationship {
+    
+                    parent_market:
+                        parent.clone(),
+    
+                    related_market:
+                        child,
+    
+                    relationship_type:
+                        "positive".to_string(),
+                };
+    
+            insert_relationship(
+                &pool,
+                &relationship
+            )
+            .await?;
+        }
     }
 
     Ok(())
