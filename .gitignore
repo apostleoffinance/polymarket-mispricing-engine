@@ -1,1 +1,16 @@
-/target
+# Rust dependencies
+rust_engine/target/
+
+# Python (future)
+research_engine/.venv/
+research_engine/__pycache__/
+*.pyc
+
+# Secrets
+.env
+rust_engine/.env
+
+# OS / IDE
+.DS_Store
+.idea/
+.vscode/

@@ -1,4 +1,4 @@
--- Run once in psql: \i migrations/001_dedupe_and_constraints.sql
+-- Run once: psql -h localhost -p 5433 -d polymarket -f sql/migrations/001_dedupe_and_constraints.sql
 
 -- Remove duplicate relationship edges (keep oldest row per edge).
 DELETE FROM market_relationships a
