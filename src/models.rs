@@ -37,6 +37,7 @@ pub struct MarketRelationship {
 }
 
 #[derive(Debug)]
+
 pub struct ArbitrageSignal {
 
     pub parent_market: String,
