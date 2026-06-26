@@ -56,11 +56,12 @@ Polymarket Gamma API
 
 - Phase 1 (ingestion): done
 - Phase 2 (snapshots + graph): done
-- Phase 3 (mispricing): started — arbitrage scaffold uses demo data, not live DB prices yet
+- Phase 3 (mispricing): in progress — live probabilities, market ID resolution, signal dedup
 
 ## Roadmap
 
-1. Wire arbitrage to live probabilities from `probability_history`
-2. Link graph labels to Polymarket market IDs
-3. Build `research_engine` Python analysis on top of stored data
-4. Dashboard and Docker when operational needs arise
+1. ~~Wire arbitrage to live probabilities from scraped markets~~
+2. ~~Link graph labels to Polymarket market IDs~~
+3. ~~Bootstrap `research_engine` Python summary script~~
+4. Expand relationship templates / discovery via Python
+5. Dashboard and Docker when operational needs arise

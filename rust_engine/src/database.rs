@@ -1,6 +1,5 @@
-use crate::models::{Market, MarketRelationship, ProbabilitySnapshot};
+use crate::models::{ArbitrageSignal, Market, MarketRelationship, ProbabilitySnapshot};
 use sqlx::PgPool;
-use crate::models::ArbitrageSignal;
 
 pub async fn upsert_market(pool: &PgPool, market: &Market) -> Result<bool, sqlx::Error> {
     let result = sqlx::query(
@@ -34,7 +33,6 @@ pub async fn upsert_market(pool: &PgPool, market: &Market) -> Result<bool, sqlx:
     Ok(result.rows_affected() > 0)
 }
 
-/// Inserts a snapshot only when probabilities changed since the latest row for this market.
 pub async fn insert_probability_snapshot_if_changed(
     pool: &PgPool,
     snapshot: &ProbabilitySnapshot,
@@ -80,15 +78,19 @@ pub async fn insert_relationship(
         r#"
         INSERT INTO market_relationships(
             parent_market,
+            parent_market_id,
             related_market,
+            related_market_id,
             relationship_type
         )
-        VALUES ($1, $2, $3)
-        ON CONFLICT (parent_market, related_market, relationship_type) DO NOTHING
+        VALUES ($1, $2, $3, $4, $5)
+        ON CONFLICT (parent_market_id, related_market_id, relationship_type) DO NOTHING
         "#
     )
-    .bind(&relationship.parent_market)
-    .bind(&relationship.related_market)
+    .bind(&relationship.parent_label)
+    .bind(&relationship.parent_market_id)
+    .bind(&relationship.related_label)
+    .bind(&relationship.related_market_id)
     .bind(&relationship.relationship_type)
     .execute(pool)
     .await?;
@@ -96,13 +98,11 @@ pub async fn insert_relationship(
     Ok(result.rows_affected() > 0)
 }
 
-
-pub async fn insert_signal(
+pub async fn insert_signal_if_changed(
     pool: &PgPool,
     signal: &ArbitrageSignal,
-) -> Result<(), sqlx::Error> {
-
-    sqlx::query(
+) -> Result<bool, sqlx::Error> {
+    let result = sqlx::query(
         r#"
         INSERT INTO arbitrage_signals(
             parent_market,
@@ -112,7 +112,23 @@ pub async fn insert_signal(
             edge,
             signal
         )
-        VALUES ($1,$2,$3,$4,$5,$6)
+        SELECT $1, $2, $3, $4, $5, $6
+        WHERE NOT EXISTS (
+            SELECT 1
+            FROM arbitrage_signals
+            WHERE parent_market = $1
+              AND related_market = $2
+              AND expected_probability = $3
+              AND observed_probability = $4
+              AND edge = $5
+              AND signal = $6
+              AND created_at = (
+                  SELECT MAX(created_at)
+                  FROM arbitrage_signals
+                  WHERE parent_market = $1
+                    AND related_market = $2
+              )
+        )
         "#
     )
     .bind(&signal.parent_market)
@@ -124,5 +140,5 @@ pub async fn insert_signal(
     .execute(pool)
     .await?;
 
-    Ok(())
+    Ok(result.rows_affected() > 0)
 }

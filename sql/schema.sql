@@ -27,10 +27,15 @@ CREATE TABLE IF NOT EXISTS probability_history (
 CREATE TABLE IF NOT EXISTS market_relationships (
     id                SERIAL PRIMARY KEY,
     parent_market     TEXT NOT NULL,
+    parent_market_id  TEXT,
     related_market    TEXT NOT NULL,
+    related_market_id TEXT,
     relationship_type TEXT NOT NULL,
     created_at        TIMESTAMP DEFAULT NOW()
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS market_relationships_unique_edge
+ON market_relationships (parent_market_id, related_market_id, relationship_type);
 
 CREATE TABLE IF NOT EXISTS arbitrage_signals (
     id                   SERIAL PRIMARY KEY,

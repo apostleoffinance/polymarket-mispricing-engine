@@ -1,27 +1,23 @@
+mod arbitrage;
 mod database;
 mod http_client;
 mod models;
-mod parser;
 mod normalizer;
+mod parser;
 mod relationships;
-mod arbitrage;
+mod resolver;
 
+use arbitrage::build_signal;
 use database::{
-    insert_probability_snapshot_if_changed, insert_relationship, upsert_market,
+    insert_probability_snapshot_if_changed, insert_relationship, insert_signal_if_changed,
+    upsert_market,
 };
 use http_client::{build_client, get_with_retry};
-use models::{Market, MarketRelationship};
+use models::MarketRelationship;
 use normalizer::normalize_market;
-use relationships::build_relationships;
+use relationships::relationship_templates;
+use resolver::resolve_relationships;
 use sqlx::PgPool;
-use arbitrage::{
-    calculate_edge,
-    determine_signal,
-    expected_probability,
-};
-use database::insert_signal;
-use models::ArbitrageSignal;
-use rust_decimal_macros::dec;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -37,7 +33,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let client = build_client()?;
     let body = get_with_retry(&client, url, 3).await?;
-    let markets: Vec<Market> = serde_json::from_str(&body)?;
+    let markets: Vec<models::Market> = serde_json::from_str(&body)?;
 
     let mut markets_upserted = 0;
     let mut snapshots_inserted = 0;
@@ -61,64 +57,79 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    let graph = build_relationships();
+    let templates = relationship_templates();
+    let resolved = resolve_relationships(&markets, &templates);
+
     let mut relationships_inserted = 0;
     let mut relationships_skipped = 0;
+    let relationships_unresolved = templates.len() - resolved.len();
 
-    for (parent, children) in graph {
-        for child in children {
-            let relationship = MarketRelationship {
-                parent_market: parent.clone(),
-                related_market: child,
-                relationship_type: "positive".to_string(),
-            };
+    for edge in &resolved {
+        let relationship = MarketRelationship {
+            parent_label: edge.parent_label.clone(),
+            parent_market_id: edge.parent_market_id.clone(),
+            related_label: edge.related_label.clone(),
+            related_market_id: edge.related_market_id.clone(),
+            relationship_type: "positive".to_string(),
+        };
 
-            if insert_relationship(&pool, &relationship).await? {
-                relationships_inserted += 1;
-                println!("Relationship: {} -> {}", relationship.parent_market, relationship.related_market);
-            } else {
-                relationships_skipped += 1;
-            }
+        if insert_relationship(&pool, &relationship).await? {
+            relationships_inserted += 1;
+            println!(
+                "Relationship: {} ({}) -> {} ({})",
+                relationship.parent_label,
+                relationship.parent_market_id,
+                relationship.related_label,
+                relationship.related_market_id
+            );
+        } else {
+            relationships_skipped += 1;
         }
     }
 
-    let parent_probability = dec!(0.70);
-    let observed_probability = dec!(0.15);
-    let expected =
-        expected_probability(
-            parent_probability
-        );
-    let edge =
-        calculate_edge(
-            expected,
-            observed_probability
-        );
-    let signal =
-        determine_signal(edge);
+    let mut signals_inserted = 0;
+    let mut signals_skipped = 0;
+    let mut signals_evaluated = 0;
 
-        let arbitrage_signal =
-        ArbitrageSignal {
-    
-            parent_market:
-                "Trump Wins".to_string(),
-    
-            related_market:
-                "Republican Senate".to_string(),
-    
-            expected_probability:
-                expected,
+    for edge in &resolved {
+        let parent = markets
+            .iter()
+            .find(|market| market.id == edge.parent_market_id);
+        let child = markets
+            .iter()
+            .find(|market| market.id == edge.related_market_id);
 
-            observed_probability,
-            edge,
-            signal,
+        let (Some(parent), Some(child)) = (parent, child) else {
+            continue;
         };
 
-        insert_signal(
-            &pool,
-            &arbitrage_signal
-        )
-        .await?;
+        let parent_snapshot = normalize_market(parent)?;
+        let child_snapshot = normalize_market(child)?;
 
+        let arbitrage_signal = build_signal(
+            &edge.parent_market_id,
+            &edge.related_market_id,
+            parent_snapshot.yes_probability,
+            child_snapshot.yes_probability,
+        );
+
+        signals_evaluated += 1;
+
+        if insert_signal_if_changed(&pool, &arbitrage_signal).await? {
+            signals_inserted += 1;
+            println!(
+                "Signal {} -> {} | parent_yes={} child_yes={} edge={} {}",
+                edge.parent_label,
+                edge.related_label,
+                parent_snapshot.yes_probability,
+                child_snapshot.yes_probability,
+                arbitrage_signal.edge,
+                arbitrage_signal.signal
+            );
+        } else {
+            signals_skipped += 1;
+        }
+    }
 
     println!();
     println!("Summary:");
@@ -126,9 +137,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("  Markets upserted: {markets_upserted}");
     println!("  Probability snapshots inserted: {snapshots_inserted}");
     println!("  Probability snapshots skipped (unchanged): {snapshots_skipped}");
+    println!("  Relationships resolved: {}", resolved.len());
+    println!("  Relationships unresolved: {relationships_unresolved}");
     println!("  Relationships inserted: {relationships_inserted}");
     println!("  Relationships skipped (already exist): {relationships_skipped}");
-    println!("{:#?}", arbitrage_signal);
+    println!("  Arbitrage signals evaluated: {signals_evaluated}");
+    println!("  Arbitrage signals inserted: {signals_inserted}");
+    println!("  Arbitrage signals skipped (unchanged): {signals_skipped}");
 
     Ok(())
 }

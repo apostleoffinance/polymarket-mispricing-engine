@@ -11,13 +11,14 @@ Python layer for graph analysis, statistics, signal discovery, and backtesting.
 - Discover mispricing signals and write results for `rust_engine` to act on
 - Jupyter notebooks for exploratory analysis
 
-## Setup (future)
+## Setup
 
 ```bash
 cd research_engine
 python -m venv .venv
 source .venv/bin/activate
-pip install -e .
+pip install -r requirements.txt
+python summary.py
 ```
 
 ## Database connection

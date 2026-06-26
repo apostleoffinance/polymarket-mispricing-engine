@@ -6,7 +6,6 @@ pub struct Market {
     pub id: String,
     pub question: String,
 
-    // Polymarket's Gamma API commonly returns these as JSON strings.
     #[serde(with = "rust_decimal::serde::str")]
     pub volume: Decimal,
 
@@ -20,7 +19,6 @@ pub struct Market {
     pub closed: bool,
 }
 
-
 #[derive(Debug)]
 pub struct ProbabilitySnapshot {
     pub market_id: String,
@@ -31,15 +29,15 @@ pub struct ProbabilitySnapshot {
 
 #[derive(Debug)]
 pub struct MarketRelationship {
-    pub parent_market: String,
-    pub related_market: String,
+    pub parent_label: String,
+    pub parent_market_id: String,
+    pub related_label: String,
+    pub related_market_id: String,
     pub relationship_type: String,
 }
 
 #[derive(Debug)]
-
 pub struct ArbitrageSignal {
-
     pub parent_market: String,
     pub related_market: String,
     pub expected_probability: Decimal,
