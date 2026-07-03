@@ -1,7 +1,9 @@
-use crate::models::{ArbitrageSignal, Market, MarketRelationship, ProbabilitySnapshot};
+use crate::models::{ArbitrageSignal, MarketRelationship, ProbabilitySnapshot, ScrapedMarket};
 use sqlx::PgPool;
 
-pub async fn upsert_market(pool: &PgPool, market: &Market) -> Result<bool, sqlx::Error> {
+pub async fn upsert_market(pool: &PgPool, scraped: &ScrapedMarket) -> Result<bool, sqlx::Error> {
+    let market = &scraped.market;
+
     let result = sqlx::query(
         r#"
         INSERT INTO markets(
@@ -10,15 +12,17 @@ pub async fn upsert_market(pool: &PgPool, market: &Market) -> Result<bool, sqlx:
             volume,
             liquidity,
             active,
-            closed
+            closed,
+            domain
         )
-        VALUES ($1, $2, $3, $4, $5, $6)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
         ON CONFLICT (id) DO UPDATE SET
             question = EXCLUDED.question,
             volume = EXCLUDED.volume,
             liquidity = EXCLUDED.liquidity,
             active = EXCLUDED.active,
-            closed = EXCLUDED.closed
+            closed = EXCLUDED.closed,
+            domain = EXCLUDED.domain
         "#
     )
     .bind(&market.id)
@@ -27,6 +31,7 @@ pub async fn upsert_market(pool: &PgPool, market: &Market) -> Result<bool, sqlx:
     .bind(market.liquidity)
     .bind(market.active)
     .bind(market.closed)
+    .bind(&scraped.domain)
     .execute(pool)
     .await?;
 

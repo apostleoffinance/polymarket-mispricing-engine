@@ -1,7 +1,7 @@
 use rust_decimal::Decimal;
 use serde::Deserialize;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct Market {
     pub id: String,
     pub question: String,
@@ -17,6 +17,18 @@ pub struct Market {
 
     pub active: bool,
     pub closed: bool,
+}
+
+impl Market {
+    pub fn has_prices(&self) -> bool {
+        !self.outcome_prices.is_empty() && self.outcome_prices != "[]"
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ScrapedMarket {
+    pub market: Market,
+    pub domain: String,
 }
 
 #[derive(Debug)]

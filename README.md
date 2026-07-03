@@ -2,7 +2,7 @@
 
 A monorepo for detecting mispriced opportunities on Polymarket prediction markets.
 
-**Rust** handles production infrastructure (scrape, store, signal generation). **Python** handles research and reporting on stored data. **PostgreSQL** is the shared contract between them.
+**Rust** handles ingestion (scrape, store). **Python** discovers graph edges and mispricing signals. **PostgreSQL** is the shared contract between them.
 
 ---
 
@@ -10,8 +10,8 @@ A monorepo for detecting mispriced opportunities on Polymarket prediction market
 
 ```
 polymarket-mispricing-engine/
-├── rust_engine/       # Rust: ingestion, DB writes, live arbitrage signals
-├── research_engine/   # Python: DB summary and future graph/stats work
+├── rust_engine/       # Rust: domain-scoped ingestion + snapshots
+├── research_engine/   # Python: graph engine + mispricing signals
 ├── sql/               # Database schema and migrations
 ├── docs/              # Architecture notes
 └── README.md
@@ -37,6 +37,11 @@ psql -h localhost -p 5433 -d postgres -f sql/schema.sql
 psql -h localhost -p 5433 -d polymarket -f sql/migrations/001_dedupe_and_constraints.sql
 psql -h localhost -p 5433 -d polymarket -f sql/migrations/002_market_ids.sql
 psql -h localhost -p 5433 -d polymarket -f sql/migrations/003_cleanup_demo_signals.sql
+psql -h localhost -p 5433 -d polymarket -f sql/migrations/004_market_domain.sql
+psql -h localhost -p 5433 -d polymarket -f sql/migrations/005_relationship_strength.sql
+psql -h localhost -p 5433 -d polymarket -f sql/migrations/006_edge_statistics.sql
+psql -h localhost -p 5433 -d polymarket -f sql/migrations/007_market_graph_metrics.sql
+psql -h localhost -p 5433 -d polymarket -f sql/migrations/008_signal_confidence.sql
 ```
 
 ### 3. Rust engine
@@ -47,13 +52,22 @@ cp .env.example .env
 cargo run
 ```
 
-Each run:
+Each run fetches markets from five Polymarket event tags only:
 
-1. Fetches 100 markets from the Polymarket Gamma API
-2. Upserts `markets` and snapshots `probability_history`
-3. Resolves relationship templates to market IDs via keyword matching
-4. Computes live arbitrage edges from scraped `outcomePrices`
-5. Inserts new rows into `arbitrage_signals` only when edge/signal changes
+| Domain | API `tag_slug` |
+|--------|----------------|
+| Politics | `politics` |
+| Football | `football` |
+| Crypto | `crypto` |
+| Macro | `macro` |
+| Geopolitics | `geopolitics` |
+
+Pipeline:
+
+1. Fetches active markets from those tagged events (paginated)
+2. Upserts `markets` (with `domain`) and snapshots `probability_history`
+
+Then run the Python graph engine (`uv run run_graph.py`) to discover relationships and signals.
 
 ### 4. Research engine (Python)
 
@@ -62,10 +76,11 @@ Requires [uv](https://docs.astral.sh/uv/):
 ```bash
 cd research_engine
 uv sync
-uv run summary.py
+uv run summary.py          # read-only summary
+uv run run_graph.py        # discover edges + mispricing signals
 ```
 
-Prints market counts, resolved relationships, and the latest **live** arbitrage signals (joined with market questions).
+Python discovers correlated market relationships and writes `market_relationships` + `arbitrage_signals`. Rust handles ingestion only.
 
 ---
 
@@ -75,11 +90,12 @@ Prints market counts, resolved relationships, and the latest **live** arbitrage 
 |-------|--------|
 | Data ingestion (markets API → Postgres) | Done |
 | Probability snapshots + relationship graph | Done |
-| Live arbitrage signals (BUY/SELL/HOLD) | Done |
-| Market ID resolution (`resolver.rs`) | Done |
-| Signal dedup (`insert_signal_if_changed`) | Done |
+| Live arbitrage signals (BUY/SELL/HOLD) | Done (Python `run_graph.py`) |
+| Graph engine (NetworkX + correlation) | Done |
+| Market ID resolution (`resolver.rs`) | Done (Rust, legacy templates) |
+| Signal dedup | Done |
 | Python research summary (`uv run summary.py`) | Done |
-| Relationship discovery via Python | Planned |
+| Relationship discovery via Python | Done (correlation) |
 | Dashboard / Docker | Deferred |
 
 See [docs/architecture.md](docs/architecture.md) for details.

@@ -16,7 +16,8 @@ cargo run
 | File | Role |
 |------|------|
 | `main.rs` | Pipeline orchestration |
-| `http_client.rs` | IPv4 HTTP client + retries |
+| `fetcher.rs` | Domain-scoped market fetch via Gamma events API |
+| `domains.rs` | Politics, football, crypto, macro, geopolitics tag slugs |
 | `models.rs` | Data structures |
 | `parser.rs` | Parse outcome prices |
 | `normalizer.rs` | Market → probability snapshot |

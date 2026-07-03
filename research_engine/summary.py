@@ -51,6 +51,23 @@ def main() -> None:
             print()
 
             cur.execute(
+                """
+                SELECT domain, COUNT(*)
+                FROM markets
+                WHERE domain IS NOT NULL
+                GROUP BY domain
+                ORDER BY domain
+                """
+            )
+            domain_rows = cur.fetchall()
+
+            if domain_rows:
+                print("Markets by domain:")
+                for domain, count in domain_rows:
+                    print(f"  {domain}: {count}")
+                print()
+
+            cur.execute(
                 f"""
                 SELECT
                     s.parent_market,
