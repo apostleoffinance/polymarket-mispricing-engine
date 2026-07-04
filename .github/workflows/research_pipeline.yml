@@ -29,7 +29,33 @@ jobs:
         run: uv sync
 
       - name: Backfill history
-        run: uv run run_backfill_history.py --relationships --limit 50
+        run: |
+          RELATIONSHIP_COUNT=$(uv run python - <<'PY'
+          from db import connect
+
+          with connect() as conn:
+              with conn.cursor() as cur:
+                  cur.execute(
+                      """
+                      SELECT COUNT(*)
+                      FROM market_relationships
+                      WHERE parent_market_id IS NOT NULL
+                        AND related_market_id IS NOT NULL
+                      """
+                  )
+                  print(cur.fetchone()[0])
+          PY
+          )
+
+          echo "Existing relationships: ${RELATIONSHIP_COUNT}"
+
+          if [ "${RELATIONSHIP_COUNT}" = "0" ]; then
+            echo "No relationships yet; running bootstrap backfill."
+            uv run run_backfill_history.py --limit 200
+          else
+            echo "Relationships found; running targeted backfill."
+            uv run run_backfill_history.py --relationships --limit 50
+          fi
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
