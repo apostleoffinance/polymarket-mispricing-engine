@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Polymarket Research</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      color-scheme: dark;
+      --blue: #2e5cff;
+      --bg: #0b0f15;
+      --panel: #151b26;
+      --panel-2: #101722;
+      --border: rgba(255, 255, 255, 0.1);
+      --text: #f4f5f6;
+      --muted: #96a1b2;
+      --green: #27ae60;
+      --red: #e74c3c;
+      --amber: #f59e0b;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+      background:
+        radial-gradient(circle at 50% -10%, rgba(46, 92, 255, 0.22), transparent 34rem),
+        var(--bg);
+      color: var(--text);
+    }
+
+    .shell { max-width: 1280px; margin: 0 auto; padding: 24px; }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 20px;
+      margin-bottom: 24px;
+    }
+
+    .brand { display: flex; align-items: center; gap: 12px; }
+    .logo {
+      width: 38px;
+      height: 38px;
+      display: grid;
+      place-items: center;
+      border-radius: 10px;
+      background: var(--blue);
+      font-weight: 800;
+      box-shadow: 0 0 24px rgba(46, 92, 255, 0.5);
+    }
+    h1 { margin: 0; font-size: 1.15rem; }
+    .sub { color: var(--muted); font-size: 0.82rem; margin-top: 2px; }
+
+    button {
+      font: inherit;
+      border: 1px solid var(--border);
+      background: var(--panel);
+      color: var(--text);
+      border-radius: 999px;
+      padding: 8px 14px;
+      cursor: pointer;
+    }
+    button:hover, button.active { border-color: var(--blue); background: rgba(46, 92, 255, 0.14); }
+    .primary { background: var(--blue); border-color: var(--blue); }
+
+    .status { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 0.82rem; }
+    .dot { width: 8px; height: 8px; border-radius: 999px; background: var(--green); }
+    .dot.error { background: var(--red); }
+
+    .filters, .tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 18px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+    .card, .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+    }
+    .card { padding: 16px; }
+    .label {
+      color: var(--muted);
+      font-size: 0.68rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      font-weight: 600;
+    }
+    .value { margin-top: 6px; font-size: 1.45rem; font-weight: 800; letter-spacing: -0.03em; }
+    .blue { color: var(--blue); }
+    .green { color: var(--green); }
+    .red { color: var(--red); }
+    .amber { color: var(--amber); }
+
+    .section { margin-bottom: 26px; }
+    .section-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+      color: var(--muted);
+      font-size: 0.85rem;
+    }
+    .section-head h2 { margin: 0; color: var(--text); font-size: 1rem; }
+
+    .hero {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 24px;
+      align-items: center;
+      padding: 22px;
+    }
+    .metrics { display: flex; flex-wrap: wrap; gap: 24px; margin-top: 14px; }
+    .metric .value { font-size: 1.25rem; }
+    .ring {
+      width: 108px;
+      height: 108px;
+      border-radius: 999px;
+      display: grid;
+      place-items: center;
+      background: conic-gradient(var(--blue) var(--pct), rgba(255,255,255,0.09) 0);
+    }
+    .ring-inner {
+      width: 82px;
+      height: 82px;
+      border-radius: 999px;
+      background: var(--panel);
+      display: grid;
+      place-items: center;
+      text-align: center;
+      font-weight: 800;
+    }
+
+    table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+    th, td { padding: 12px 14px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
+    th { color: var(--muted); background: var(--panel-2); font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.05em; }
+    tr:last-child td { border-bottom: 0; }
+    .q { max-width: 310px; }
+    .id { color: var(--muted); font-size: 0.68rem; margin-top: 3px; }
+    .tag {
+      display: inline-block;
+      margin-bottom: 4px;
+      color: var(--blue);
+      background: rgba(46, 92, 255, 0.14);
+      border-radius: 5px;
+      padding: 2px 7px;
+      font-size: 0.65rem;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+    .badge { padding: 3px 9px; border-radius: 999px; font-size: 0.68rem; font-weight: 800; }
+    .BUY { color: var(--green); background: rgba(39, 174, 96, 0.14); }
+    .SELL { color: var(--red); background: rgba(231, 76, 60, 0.14); }
+    .HOLD { color: var(--muted); background: rgba(255,255,255,0.08); }
+    .hidden { display: none; }
+    .empty { color: var(--muted); text-align: center; padding: 28px; }
+    @media (max-width: 720px) { .hero { grid-template-columns: 1fr; } header { flex-direction: column; align-items: flex-start; } }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header>
+      <div class="brand">
+        <div class="logo">P</div>
+        <div>
+          <h1>Polymarket Research</h1>
+          <div class="sub">Live signals, category win rates, and latest backtest</div>
+        </div>
+      </div>
+      <div class="status">
+        <span class="dot" id="dot"></span>
+        <span id="status">Loading</span>
+        <button class="primary" onclick="load()">Refresh</button>
+      </div>
+    </header>
+
+    <div class="filters" id="filters"></div>
+    <div class="grid" id="domainCards"></div>
+    <div class="grid" id="overview"></div>
+
+    <section class="section">
+      <div class="section-head">
+        <h2>Latest Backtest</h2>
+        <span id="backtestMeta"></span>
+      </div>
+      <div class="panel hero" id="backtestHero"></div>
+    </section>
+
+    <section class="section">
+      <div class="tabs">
+        <button class="active" id="tabSignals" onclick="setTab('signals')">Live Signals</button>
+        <button id="tabResults" onclick="setTab('results')">Backtest Results</button>
+      </div>
+
+      <div class="panel" id="signalsPanel">
+        <table>
+          <thead>
+            <tr><th>Parent</th><th>Child</th><th>Expected</th><th>Observed</th><th>Edge</th><th>Conf</th><th>Signal</th></tr>
+          </thead>
+          <tbody id="signals"></tbody>
+        </table>
+      </div>
+
+      <div class="panel hidden" id="resultsPanel">
+        <table>
+          <thead>
+            <tr><th>Parent</th><th>Child</th><th>Signal</th><th>Edge T</th><th>Edge T+Δ</th><th>Outcome</th><th>PnL</th></tr>
+          </thead>
+          <tbody id="results"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const DEFAULT_CATEGORIES = ["politics", "football", "crypto", "macro", "geopolitics"];
+    let selectedDomain = "all";
+
+    const fmt = (n, d = 4) => n == null ? "—" : Number(n).toFixed(d);
+    const pct = (n) => `${(Number(n || 0) * 100).toFixed(1)}%`;
+    const nfmt = (n) => Number(n || 0).toLocaleString();
+    const cls = (rate) => rate >= 0.5 ? "green" : rate >= 0.25 ? "amber" : "red";
+    const api = async (url) => {
+      const r = await fetch(url);
+      if (!r.ok) throw new Error(`${url} ${r.status}`);
+      return r.json();
+    };
+
+    function q() {
+      return selectedDomain === "all" ? "" : `?domain=${encodeURIComponent(selectedDomain)}`;
+    }
+    function amp() {
+      return selectedDomain === "all" ? "" : `&domain=${encodeURIComponent(selectedDomain)}`;
+    }
+    function setDomain(domain) {
+      selectedDomain = domain;
+      load();
+    }
+    function setTab(tab) {
+      document.getElementById("tabSignals").classList.toggle("active", tab === "signals");
+      document.getElementById("tabResults").classList.toggle("active", tab === "results");
+      document.getElementById("signalsPanel").classList.toggle("hidden", tab !== "signals");
+      document.getElementById("resultsPanel").classList.toggle("hidden", tab !== "results");
+    }
+    function market(question, id, domain) {
+      return `
+        ${domain ? `<div class="tag">${domain}</div>` : ""}
+        <div class="q">${question || id || "—"}</div>
+        ${id ? `<div class="id">#${id}</div>` : ""}
+      `;
+    }
+    function signed(n) {
+      if (n == null) return "—";
+      const v = Number(n);
+      return `<span class="${v > 0 ? "green" : v < 0 ? "red" : ""}">${v.toFixed(4)}</span>`;
+    }
+
+    function renderFilters(categories) {
+      const items = ["all", ...categories.filter((d) => d !== "unknown")];
+      document.getElementById("filters").innerHTML = items.map((domain) => `
+        <button class="${selectedDomain === domain ? "active" : ""}" onclick="setDomain('${domain}')">
+          ${domain === "all" ? "All markets" : domain}
+        </button>
+      `).join("");
+    }
+
+    function renderDomainCards(stats) {
+      const live = stats.live || {};
+      const backtest = stats.backtest || {};
+      const categories = (stats.categories || DEFAULT_CATEGORIES).filter((d) => d !== "unknown");
+      const all = Object.values(backtest).reduce((acc, row) => {
+        acc.signals += row.actionable_signals || 0;
+        acc.wins += row.directional_wins || 0;
+        return acc;
+      }, { signals: 0, wins: 0 });
+      const allLive = Object.values(live).reduce((sum, row) => sum + (row.signals || 0), 0);
+
+      const cards = [{
+        domain: "all",
+        label: "All markets",
+        signals: all.signals,
+        wins: all.wins,
+        live: allLive,
+      }, ...categories.map((domain) => ({
+        domain,
+        label: domain,
+        signals: backtest[domain]?.actionable_signals || 0,
+        wins: backtest[domain]?.directional_wins || 0,
+        live: live[domain]?.signals || 0,
+      }))];
+
+      document.getElementById("domainCards").innerHTML = cards.map((card) => {
+        const rate = card.signals ? card.wins / card.signals : 0;
+        return `
+          <button class="card ${selectedDomain === card.domain ? "active" : ""}" onclick="setDomain('${card.domain}')">
+            <div class="label">${card.label}</div>
+            <div class="value ${card.signals ? cls(rate) : ""}">${card.signals ? pct(rate) : "—"}</div>
+            <div class="sub">${card.wins}/${card.signals} backtest · ${card.live} live</div>
+          </button>
+        `;
+      }).join("");
+    }
+
+    function renderOverview(data) {
+      const rows = [
+        ["Markets", data.markets],
+        ["Snapshots", data.snapshots],
+        ["Relationships", data.relationships],
+        ["Live Signals", data.signals, "blue"],
+        ["Deep History", data.markets_with_100_plus_snapshots],
+        ["Avg Snaps/Market", data.avg_snapshots_per_market],
+      ];
+      document.getElementById("overview").innerHTML = rows.map(([label, value, color]) => `
+        <div class="card">
+          <div class="label">${label}</div>
+          <div class="value ${color || ""}">${nfmt(value)}</div>
+        </div>
+      `).join("");
+    }
+
+    function renderBacktest(data) {
+      const label = selectedDomain === "all" ? "All markets" : selectedDomain;
+      document.getElementById("backtestMeta").textContent = data ? `${label} · run #${data.id}` : label;
+      if (!data) {
+        document.getElementById("backtestHero").innerHTML = `<div class="empty">No backtest data yet.</div>`;
+        return;
+      }
+      const rate = data.directional_win_rate || 0;
+      document.getElementById("backtestHero").innerHTML = `
+        <div>
+          <div class="sub">Latest run · ${data.started_at ? new Date(data.started_at).toLocaleString() : ""}</div>
+          <div class="metrics">
+            <div class="metric"><div class="label">Actionable</div><div class="value">${nfmt(data.actionable_signals)}</div></div>
+            <div class="metric"><div class="label">Wins</div><div class="value">${nfmt(data.directional_wins)}</div></div>
+            <div class="metric"><div class="label">Edge Closed</div><div class="value ${cls(data.edge_closed_rate)}">${pct(data.edge_closed_rate)}</div></div>
+            <div class="metric"><div class="label">Avg Reprice</div><div class="value">${data.mean_minutes_to_reprice == null ? "—" : Math.round(data.mean_minutes_to_reprice) + "m"}</div></div>
+          </div>
+        </div>
+        <div class="ring" style="--pct:${Math.round(rate * 100)}%">
+          <div class="ring-inner"><div>${pct(rate)}</div><div class="label">win rate</div></div>
+        </div>
+      `;
+    }
+
+    function renderSignals(rows) {
+      document.getElementById("signals").innerHTML = rows.length ? rows.map((row) => `
+        <tr>
+          <td>${market(row.parent_question, row.parent_id, row.domain)}</td>
+          <td>${market(row.child_question, row.child_id)}</td>
+          <td>${fmt(row.expected)}</td>
+          <td>${fmt(row.observed)}</td>
+          <td>${signed(row.edge)}</td>
+          <td>${fmt(row.confidence, 3)}</td>
+          <td><span class="badge ${row.signal || "HOLD"}">${row.signal || "HOLD"}</span></td>
+        </tr>
+      `).join("") : `<tr><td colspan="7" class="empty">No live signals.</td></tr>`;
+    }
+
+    function renderResults(rows) {
+      document.getElementById("results").innerHTML = rows.length ? rows.map((row) => `
+        <tr>
+          <td>${market(row.parent_question, row.parent_id, row.domain)}</td>
+          <td>${market(row.child_question, row.child_id)}</td>
+          <td><span class="badge ${row.signal || "HOLD"}">${row.signal || "HOLD"}</span></td>
+          <td>${signed(row.edge_at_t)}</td>
+          <td>${signed(row.edge_at_t_plus)}</td>
+          <td class="${row.directional_win ? "green" : "red"}">${row.directional_win ? "win" : "loss"}</td>
+          <td>${signed(row.simple_pnl)}</td>
+        </tr>
+      `).join("") : `<tr><td colspan="7" class="empty">No backtest results.</td></tr>`;
+    }
+
+    async function load() {
+      const dot = document.getElementById("dot");
+      const status = document.getElementById("status");
+      dot.classList.remove("error");
+      status.textContent = "Refreshing";
+      try {
+        const [overview, domains, latest, signals, results] = await Promise.all([
+          api(`/api/overview${q()}`),
+          api("/api/domains"),
+          api(`/api/backtest/latest${q()}`),
+          api(`/api/signals?limit=20${amp()}`),
+          api(`/api/backtest/results?limit=20${amp()}`),
+        ]);
+        renderFilters(domains.categories || DEFAULT_CATEGORIES);
+        renderDomainCards(domains);
+        renderOverview(overview);
+        renderBacktest(latest);
+        renderSignals(signals);
+        renderResults(results);
+        status.textContent = `Live · ${new Date().toLocaleTimeString()}`;
+      } catch (error) {
+        console.error(error);
+        dot.classList.add("error");
+        status.textContent = "Error";
+        document.getElementById("backtestHero").innerHTML = `<div class="empty red">Failed to load: ${error.message}</div>`;
+      }
+    }
+
+    load();
+    setInterval(load, 60_000);
+  </script>
+</body>
+</html>

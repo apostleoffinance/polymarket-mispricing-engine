@@ -1,0 +1,15 @@
+{
+  "name": "polymarket-dashboard",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vercel dev",
+    "deploy": "vercel --prod"
+  },
+  "dependencies": {
+    "@neondatabase/serverless": "latest"
+  },
+  "devDependencies": {
+    "vercel": "latest"
+  }
+}
