@@ -1,0 +1,44 @@
+name: Research Pipeline
+
+on:
+  schedule:
+    - cron: "0 */6 * * *" # Every 6 hours
+  workflow_dispatch:
+
+jobs:
+  pipeline:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: research_engine
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Backfill history
+        run: uv run run_backfill_history.py --relationships --limit 50
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      - name: Build graph
+        run: uv run run_graph.py
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      - name: Run backtest
+        run: uv run run_backtest.py
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
