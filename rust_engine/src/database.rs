@@ -1,4 +1,4 @@
-use crate::models::{ArbitrageSignal, MarketRelationship, ProbabilitySnapshot, ScrapedMarket};
+use crate::models::{ProbabilitySnapshot, ScrapedMarket};
 use sqlx::PgPool;
 
 pub async fn upsert_market(pool: &PgPool, scraped: &ScrapedMarket) -> Result<bool, sqlx::Error> {
@@ -77,79 +77,6 @@ pub async fn insert_probability_snapshot_if_changed(
     .bind(&snapshot.question)
     .bind(snapshot.yes_probability)
     .bind(snapshot.no_probability)
-    .execute(pool)
-    .await?;
-
-    Ok(result.rows_affected() > 0)
-}
-
-pub async fn insert_relationship(
-    pool: &PgPool,
-    relationship: &MarketRelationship,
-) -> Result<bool, sqlx::Error> {
-    let result = sqlx::query(
-        r#"
-        INSERT INTO market_relationships(
-            parent_market,
-            parent_market_id,
-            related_market,
-            related_market_id,
-            relationship_type
-        )
-        VALUES ($1, $2, $3, $4, $5)
-        ON CONFLICT (parent_market_id, related_market_id, relationship_type) DO NOTHING
-        "#
-    )
-    .bind(&relationship.parent_label)
-    .bind(&relationship.parent_market_id)
-    .bind(&relationship.related_label)
-    .bind(&relationship.related_market_id)
-    .bind(&relationship.relationship_type)
-    .execute(pool)
-    .await?;
-
-    Ok(result.rows_affected() > 0)
-}
-
-pub async fn insert_signal_if_changed(
-    pool: &PgPool,
-    signal: &ArbitrageSignal,
-) -> Result<bool, sqlx::Error> {
-    let result = sqlx::query(
-        r#"
-        INSERT INTO arbitrage_signals(
-            parent_market,
-            related_market,
-            expected_probability,
-            observed_probability,
-            edge,
-            signal
-        )
-        SELECT $1, $2, $3, $4, $5, $6
-        WHERE NOT EXISTS (
-            SELECT 1
-            FROM arbitrage_signals
-            WHERE parent_market = $1
-              AND related_market = $2
-              AND expected_probability = $3
-              AND observed_probability = $4
-              AND edge = $5
-              AND signal = $6
-              AND created_at = (
-                  SELECT MAX(created_at)
-                  FROM arbitrage_signals
-                  WHERE parent_market = $1
-                    AND related_market = $2
-              )
-        )
-        "#
-    )
-    .bind(&signal.parent_market)
-    .bind(&signal.related_market)
-    .bind(signal.expected_probability)
-    .bind(signal.observed_probability)
-    .bind(signal.edge)
-    .bind(&signal.signal)
     .execute(pool)
     .await?;
 
