@@ -13,8 +13,12 @@ CREATE TABLE IF NOT EXISTS markets (
     active     BOOLEAN,
     closed     BOOLEAN,
     domain     TEXT,
+    yes_clob_token_id TEXT,
+    no_clob_token_id  TEXT,
     created_at TIMESTAMP DEFAULT NOW()
 );
+
+CREATE INDEX IF NOT EXISTS markets_yes_clob_token_idx ON markets (yes_clob_token_id);
 
 CREATE INDEX IF NOT EXISTS markets_domain_idx ON markets (domain);
 
@@ -26,6 +30,12 @@ CREATE TABLE IF NOT EXISTS probability_history (
     no_probability  NUMERIC,
     recorded_at     TIMESTAMP DEFAULT NOW()
 );
+
+CREATE INDEX IF NOT EXISTS probability_history_market_time_idx
+    ON probability_history (market_id, recorded_at);
+
+CREATE UNIQUE INDEX IF NOT EXISTS probability_history_market_time_unique
+    ON probability_history (market_id, recorded_at);
 
 CREATE TABLE IF NOT EXISTS market_relationships (
     id                SERIAL PRIMARY KEY,
@@ -71,3 +81,41 @@ CREATE TABLE IF NOT EXISTS arbitrage_signals (
     reason_json          TEXT,
     created_at           TIMESTAMP DEFAULT NOW()
 );
+
+CREATE TABLE IF NOT EXISTS backtest_runs (
+    id                      SERIAL PRIMARY KEY,
+    started_at              TIMESTAMP DEFAULT NOW(),
+    config_json             TEXT,
+    total_evaluations       INTEGER,
+    actionable_signals      INTEGER,
+    directional_wins        INTEGER,
+    edge_closed_count       INTEGER,
+    directional_win_rate    NUMERIC(20, 10),
+    edge_closed_rate        NUMERIC(20, 10),
+    mean_edge_at_signal     NUMERIC(20, 10),
+    mean_edge_after         NUMERIC(20, 10),
+    mean_minutes_to_reprice NUMERIC(20, 10)
+);
+
+CREATE TABLE IF NOT EXISTS backtest_results (
+    id                    SERIAL PRIMARY KEY,
+    run_id                INTEGER REFERENCES backtest_runs(id),
+    parent_market_id      TEXT NOT NULL,
+    child_market_id       TEXT NOT NULL,
+    domain                TEXT,
+    signal_time           TIMESTAMP NOT NULL,
+    horizon_minutes       INTEGER,
+    signal                TEXT NOT NULL,
+    expected_probability  NUMERIC(20, 10),
+    observed_at_t         NUMERIC(20, 10),
+    observed_at_t_plus    NUMERIC(20, 10),
+    edge_at_t             NUMERIC(20, 10),
+    edge_at_t_plus        NUMERIC(20, 10),
+    confidence            NUMERIC(20, 10),
+    directional_win       BOOLEAN,
+    edge_closed           BOOLEAN,
+    minutes_to_reprice    NUMERIC(20, 10),
+    simple_pnl            NUMERIC(20, 10)
+);
+
+CREATE INDEX IF NOT EXISTS backtest_results_run_id_idx ON backtest_results (run_id);

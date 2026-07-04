@@ -4,6 +4,8 @@ use sqlx::PgPool;
 pub async fn upsert_market(pool: &PgPool, scraped: &ScrapedMarket) -> Result<bool, sqlx::Error> {
     let market = &scraped.market;
 
+    let (yes_token, no_token) = market.clob_tokens();
+
     let result = sqlx::query(
         r#"
         INSERT INTO markets(
@@ -13,16 +15,20 @@ pub async fn upsert_market(pool: &PgPool, scraped: &ScrapedMarket) -> Result<boo
             liquidity,
             active,
             closed,
-            domain
+            domain,
+            yes_clob_token_id,
+            no_clob_token_id
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
         ON CONFLICT (id) DO UPDATE SET
             question = EXCLUDED.question,
             volume = EXCLUDED.volume,
             liquidity = EXCLUDED.liquidity,
             active = EXCLUDED.active,
             closed = EXCLUDED.closed,
-            domain = EXCLUDED.domain
+            domain = EXCLUDED.domain,
+            yes_clob_token_id = COALESCE(EXCLUDED.yes_clob_token_id, markets.yes_clob_token_id),
+            no_clob_token_id = COALESCE(EXCLUDED.no_clob_token_id, markets.no_clob_token_id)
         "#
     )
     .bind(&market.id)
@@ -32,6 +38,8 @@ pub async fn upsert_market(pool: &PgPool, scraped: &ScrapedMarket) -> Result<boo
     .bind(market.active)
     .bind(market.closed)
     .bind(&scraped.domain)
+    .bind(yes_token)
+    .bind(no_token)
     .execute(pool)
     .await?;
 

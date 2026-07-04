@@ -27,6 +27,8 @@ struct GammaMarket {
     question: String,
     #[serde(rename = "outcomePrices", default)]
     outcome_prices: String,
+    #[serde(rename = "clobTokenIds", default)]
+    clob_token_ids: String,
     #[serde(default)]
     active: bool,
     #[serde(default)]
@@ -47,6 +49,7 @@ impl GammaMarket {
             volume: decimal_field(self.volume, self.volume_num),
             liquidity: decimal_field(self.liquidity, self.liquidity_num),
             outcome_prices: self.outcome_prices,
+            clob_token_ids: self.clob_token_ids,
             active: self.active,
             closed: self.closed,
         }

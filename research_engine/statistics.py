@@ -41,11 +41,14 @@ def composite_strength(
 def compute_pair_statistics(
     parent: pd.Series,
     child: pd.Series,
+    *,
+    min_observations: int | None = None,
 ) -> PairStatistics | None:
     """OLS child ~ parent on aligned, non-null observations."""
+    required = min_observations if min_observations is not None else MIN_OVERLAPPING_SNAPSHOTS
     aligned = pd.concat([parent, child], axis=1, join="inner").dropna()
     n_observations = len(aligned)
-    if n_observations < MIN_OVERLAPPING_SNAPSHOTS:
+    if n_observations < required:
         return None
 
     parent_values = aligned.iloc[:, 0].astype(float)

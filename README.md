@@ -42,6 +42,8 @@ psql -h localhost -p 5433 -d polymarket -f sql/migrations/005_relationship_stren
 psql -h localhost -p 5433 -d polymarket -f sql/migrations/006_edge_statistics.sql
 psql -h localhost -p 5433 -d polymarket -f sql/migrations/007_market_graph_metrics.sql
 psql -h localhost -p 5433 -d polymarket -f sql/migrations/008_signal_confidence.sql
+psql -h localhost -p 5433 -d polymarket -f sql/migrations/009_backtest.sql
+psql -h localhost -p 5433 -d polymarket -f sql/migrations/010_clob_tokens_and_history_index.sql
 ```
 
 ### 3. Rust engine
@@ -78,6 +80,8 @@ cd research_engine
 uv sync
 uv run summary.py          # read-only summary
 uv run run_graph.py        # discover edges + mispricing signals
+uv run run_backtest.py     # walk-forward backtest
+uv run run_backfill_history.py  # CLOB historical backfill (up to 3 years)
 ```
 
 Python discovers correlated market relationships and writes `market_relationships` + `arbitrage_signals`. Rust handles ingestion only.

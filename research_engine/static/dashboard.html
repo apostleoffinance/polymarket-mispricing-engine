@@ -1,0 +1,1146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Research · Polymarket</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      color-scheme: dark;
+      --poly-blue: #2e5cff;
+      --poly-blue-dim: rgba(46, 92, 255, 0.15);
+      --poly-blue-glow: rgba(46, 92, 255, 0.35);
+      --bg: #0b0f15;
+      --bg-elevated: #111620;
+      --card: #161b26;
+      --card-hover: #1c2230;
+      --border: rgba(255, 255, 255, 0.08);
+      --border-strong: rgba(255, 255, 255, 0.14);
+      --text: #f4f5f6;
+      --text-secondary: #9aa4b2;
+      --text-tertiary: #6b7685;
+      --yes: #27ae60;
+      --yes-bg: rgba(39, 174, 96, 0.12);
+      --no: #e74c3c;
+      --no-bg: rgba(231, 76, 60, 0.12);
+      --hold: #9aa4b2;
+      --hold-bg: rgba(154, 164, 178, 0.1);
+      --warn: #f59e0b;
+      --warn-bg: rgba(245, 158, 11, 0.12);
+      --radius: 12px;
+      --radius-sm: 8px;
+      --shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+      min-height: 100vh;
+    }
+
+    /* subtle grid background */
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 80% 50% at 50% -20%, var(--poly-blue-dim), transparent),
+        linear-gradient(var(--border) 1px, transparent 1px),
+        linear-gradient(90deg, var(--border) 1px, transparent 1px);
+      background-size: auto, 48px 48px, 48px 48px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .shell {
+      position: relative;
+      z-index: 1;
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 0 24px 48px;
+    }
+
+    /* ── Header ── */
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 20px 0;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 32px;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-icon {
+      width: 36px;
+      height: 36px;
+      background: var(--poly-blue);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 18px;
+      color: #fff;
+      box-shadow: 0 0 20px var(--poly-blue-glow);
+    }
+
+    .brand-text h1 {
+      font-size: 1.125rem;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+    }
+
+    .brand-text .subtitle {
+      font-size: 0.8125rem;
+      color: var(--text-secondary);
+      margin-top: 1px;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .status-pill {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 6px 12px;
+    }
+
+    .status-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--yes);
+      animation: pulse 2s infinite;
+    }
+
+    .status-dot.error { background: var(--no); animation: none; }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    .btn {
+      font-family: inherit;
+      font-size: 0.8125rem;
+      font-weight: 500;
+      padding: 8px 16px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border-strong);
+      background: var(--card);
+      color: var(--text);
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+    }
+
+    .btn:hover { background: var(--card-hover); border-color: var(--poly-blue); }
+    .btn-primary {
+      background: var(--poly-blue);
+      border-color: var(--poly-blue);
+      color: #fff;
+    }
+    .btn-primary:hover { filter: brightness(1.1); }
+
+    /* ── Stats grid ── */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 12px;
+      margin-bottom: 28px;
+    }
+
+    .stat-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px 18px;
+      transition: border-color 0.15s;
+    }
+
+    .stat-card:hover { border-color: var(--border-strong); }
+
+    .stat-card .label {
+      font-size: 0.6875rem;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-tertiary);
+    }
+
+    .stat-card .value {
+      font-size: 1.625rem;
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      margin-top: 4px;
+      color: var(--text);
+    }
+
+    .stat-card.highlight {
+      border-color: rgba(46, 92, 255, 0.4);
+      background: linear-gradient(135deg, var(--card) 0%, rgba(46, 92, 255, 0.08) 100%);
+    }
+
+    .stat-card.highlight .value { color: var(--poly-blue); }
+
+    /* ── Sections ── */
+    .section {
+      margin-bottom: 32px;
+    }
+
+    .section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+      gap: 12px;
+    }
+
+    .section-header h2 {
+      font-size: 0.9375rem;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+    }
+
+    .section-header .meta {
+      font-size: 0.75rem;
+      color: var(--text-tertiary);
+    }
+
+    .panel {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      box-shadow: var(--shadow);
+    }
+
+    /* ── Backtest hero ── */
+    .backtest-hero {
+      padding: 24px;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 24px;
+      align-items: center;
+    }
+
+    @media (max-width: 640px) {
+      .backtest-hero { grid-template-columns: 1fr; }
+    }
+
+    .backtest-run {
+      font-size: 0.8125rem;
+      color: var(--text-secondary);
+      margin-bottom: 16px;
+    }
+
+    .backtest-run strong { color: var(--text); }
+
+    .metrics-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 24px;
+    }
+
+    .metric {
+      min-width: 120px;
+    }
+
+    .metric .metric-label {
+      font-size: 0.6875rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-tertiary);
+      margin-bottom: 4px;
+    }
+
+    .metric .metric-value {
+      font-size: 1.5rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+
+    .metric .metric-value.good { color: var(--yes); }
+    .metric .metric-value.warn { color: var(--warn); }
+    .metric .metric-value.bad { color: var(--no); }
+
+    .win-ring {
+      width: 100px;
+      height: 100px;
+      position: relative;
+    }
+
+    .win-ring svg { transform: rotate(-90deg); }
+    .win-ring circle { fill: none; stroke-width: 6; }
+    .win-ring .track { stroke: var(--border-strong); }
+    .win-ring .fill { stroke: var(--poly-blue); stroke-linecap: round; transition: stroke-dashoffset 0.6s ease; }
+    .win-ring .ring-label {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+    .win-ring .ring-pct { font-size: 1.25rem; font-weight: 700; }
+    .win-ring .ring-sub { font-size: 0.625rem; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.05em; }
+
+    .alert {
+      margin-top: 16px;
+      padding: 10px 14px;
+      border-radius: var(--radius-sm);
+      font-size: 0.8125rem;
+      background: var(--warn-bg);
+      border: 1px solid rgba(245, 158, 11, 0.25);
+      color: #fbbf24;
+    }
+
+    .edge-bar-wrap {
+      margin-top: 16px;
+      font-size: 0.8125rem;
+      color: var(--text-secondary);
+    }
+
+    .edge-bar {
+      height: 6px;
+      background: var(--border-strong);
+      border-radius: 3px;
+      margin-top: 6px;
+      overflow: hidden;
+      display: flex;
+    }
+
+    .edge-bar .at { background: var(--poly-blue); }
+    .edge-bar .after { background: var(--text-tertiary); }
+
+    /* ── Tables ── */
+    .table-wrap { overflow-x: auto; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.8125rem;
+    }
+
+    th {
+      text-align: left;
+      padding: 12px 16px;
+      font-size: 0.6875rem;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-tertiary);
+      background: var(--bg-elevated);
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+
+    td {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: middle;
+    }
+
+    tr:last-child td { border-bottom: none; }
+    tbody tr { transition: background 0.1s; }
+    tbody tr:hover { background: rgba(255, 255, 255, 0.02); }
+
+    .question {
+      max-width: 260px;
+      line-height: 1.4;
+      color: var(--text);
+    }
+
+    .question-sub {
+      font-size: 0.6875rem;
+      color: var(--text-tertiary);
+      margin-top: 2px;
+    }
+
+    .num { font-variant-numeric: tabular-nums; font-weight: 500; }
+    .num.positive { color: var(--yes); }
+    .num.negative { color: var(--no); }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 3px 10px;
+      border-radius: 999px;
+      font-size: 0.6875rem;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .badge.buy { background: var(--yes-bg); color: var(--yes); }
+    .badge.sell { background: var(--no-bg); color: var(--no); }
+    .badge.hold { background: var(--hold-bg); color: var(--hold); }
+
+    .win-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      font-size: 0.75rem;
+      font-weight: 700;
+    }
+    .win-icon.win { background: var(--yes-bg); color: var(--yes); }
+    .win-icon.loss { background: var(--no-bg); color: var(--no); }
+
+    /* ── Tabs ── */
+    .tabs {
+      display: flex;
+      gap: 4px;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 3px;
+      margin-bottom: 14px;
+      width: fit-content;
+    }
+
+    .tab {
+      font-family: inherit;
+      font-size: 0.8125rem;
+      font-weight: 500;
+      padding: 6px 14px;
+      border: none;
+      border-radius: 6px;
+      background: transparent;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+
+    .tab.active {
+      background: var(--card);
+      color: var(--text);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+    }
+
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    /* ── Loading ── */
+    .skeleton {
+      background: linear-gradient(90deg, var(--card) 25%, var(--card-hover) 50%, var(--card) 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.4s infinite;
+      border-radius: var(--radius-sm);
+      height: 20px;
+    }
+
+    @keyframes shimmer {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+
+    .loading-panel {
+      padding: 48px;
+      text-align: center;
+      color: var(--text-secondary);
+      font-size: 0.875rem;
+    }
+
+    .empty-state {
+      padding: 40px 24px;
+      text-align: center;
+      color: var(--text-secondary);
+      font-size: 0.875rem;
+    }
+
+    .empty-state code {
+      display: inline-block;
+      margin-top: 8px;
+      padding: 4px 10px;
+      background: var(--bg-elevated);
+      border-radius: 6px;
+      font-size: 0.8125rem;
+      color: var(--poly-blue);
+    }
+
+    footer {
+      margin-top: 48px;
+      padding-top: 20px;
+      border-top: 1px solid var(--border);
+      font-size: 0.75rem;
+      color: var(--text-tertiary);
+      text-align: center;
+    }
+
+    /* ── Category filter ── */
+    .category-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 20px;
+    }
+
+    .category-bar .filter-label {
+      font-size: 0.75rem;
+      font-weight: 500;
+      color: var(--text-tertiary);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-right: 4px;
+    }
+
+    .category-chip {
+      font-family: inherit;
+      font-size: 0.8125rem;
+      font-weight: 500;
+      padding: 6px 14px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: var(--card);
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.15s;
+      text-transform: capitalize;
+    }
+
+    .category-chip:hover {
+      border-color: var(--border-strong);
+      color: var(--text);
+    }
+
+    .category-chip.active {
+      background: var(--poly-blue);
+      border-color: var(--poly-blue);
+      color: #fff;
+      box-shadow: 0 0 16px var(--poly-blue-glow);
+    }
+
+    .domain-win-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 10px;
+      margin-bottom: 24px;
+    }
+
+    .domain-win-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 12px 14px;
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+      text-align: left;
+      font-family: inherit;
+      color: inherit;
+    }
+
+    .domain-win-card:hover {
+      border-color: var(--border-strong);
+      background: var(--card-hover);
+    }
+
+    .domain-win-card.active {
+      border-color: var(--poly-blue);
+      background: var(--poly-blue-dim);
+    }
+
+    .domain-win-card .dw-name {
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: capitalize;
+      color: var(--text-secondary);
+      margin-bottom: 4px;
+    }
+
+    .domain-win-card .dw-rate {
+      font-size: 1.125rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+
+    .domain-win-card .dw-rate.good { color: var(--yes); }
+    .domain-win-card .dw-rate.warn { color: var(--warn); }
+    .domain-win-card .dw-rate.bad { color: var(--no); }
+
+    .domain-win-card .dw-sub {
+      font-size: 0.6875rem;
+      color: var(--text-tertiary);
+      margin-top: 2px;
+    }
+
+    .domain-tag {
+      display: inline-block;
+      font-size: 0.625rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      padding: 2px 7px;
+      border-radius: 4px;
+      background: var(--poly-blue-dim);
+      color: var(--poly-blue);
+      margin-bottom: 4px;
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header>
+      <div class="brand">
+        <div class="brand-icon">P</div>
+        <div class="brand-text">
+          <h1>Research Workstation</h1>
+          <div class="subtitle">Mispricing engine · live signals &amp; backtest</div>
+        </div>
+      </div>
+      <div class="header-actions">
+        <div class="status-pill" id="status-pill">
+          <span class="status-dot" id="status-dot"></span>
+          <span id="status-text">Connecting…</span>
+        </div>
+        <button class="btn btn-primary" id="refresh-btn" onclick="load()">Refresh</button>
+      </div>
+    </header>
+
+    <div class="category-bar" id="category-bar">
+      <span class="filter-label">Category</span>
+    </div>
+
+    <div class="domain-win-grid" id="domain-win-grid"></div>
+
+    <div class="stats-grid" id="overview">
+      <div class="stat-card"><div class="skeleton" style="height:48px"></div></div>
+      <div class="stat-card"><div class="skeleton" style="height:48px"></div></div>
+      <div class="stat-card"><div class="skeleton" style="height:48px"></div></div>
+      <div class="stat-card"><div class="skeleton" style="height:48px"></div></div>
+    </div>
+
+    <div class="section">
+      <div class="section-header">
+        <h2>Latest Backtest</h2>
+        <span class="meta" id="backtest-meta"></span>
+      </div>
+      <div class="panel" id="backtest-panel">
+        <div class="loading-panel">Loading backtest data…</div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="tabs">
+        <button class="tab active" data-tab="signals" onclick="switchTab('signals')">Live Signals</button>
+        <button class="tab" data-tab="results" onclick="switchTab('results')">Backtest Results</button>
+      </div>
+
+      <div class="tab-panel active" id="tab-signals">
+        <div class="panel table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Parent market</th>
+                <th>Child market</th>
+                <th>Expected</th>
+                <th>Observed</th>
+                <th>Edge</th>
+                <th>Conf</th>
+                <th>Signal</th>
+              </tr>
+            </thead>
+            <tbody id="signals">
+              <tr><td colspan="7" class="loading-panel">Loading…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="tab-panel" id="tab-results">
+        <div class="panel table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Parent market</th>
+                <th>Child market</th>
+                <th>Signal</th>
+                <th>Edge @ T</th>
+                <th>Edge @ T+Δ</th>
+                <th>Outcome</th>
+                <th>PnL</th>
+              </tr>
+            </thead>
+            <tbody id="backtest-results">
+              <tr><td colspan="7" class="loading-panel">Loading…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <footer>
+      Polymarket Research Engine · data from PostgreSQL ·
+      <span id="last-updated"></span>
+    </footer>
+  </div>
+
+  <script>
+    let selectedDomain = "all";
+
+    const DEFAULT_CATEGORIES = [
+      "politics", "football", "crypto", "macro", "geopolitics",
+    ];
+
+    async function fetchJson(url) {
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`${url} → ${response.status}`);
+      }
+      return response.json();
+    }
+
+    function normalizeDomainStats(data, overview) {
+      if (data && Array.isArray(data.categories)) {
+        return {
+          categories: data.categories,
+          live: data.live || {},
+          backtest: data.backtest || {},
+        };
+      }
+      if (overview?.backtest_by_domain) {
+        const cats = [
+          ...new Set([
+            ...Object.keys(overview.domains || {}),
+            ...Object.keys(overview.backtest_by_domain || {}),
+            ...Object.keys(overview.live_by_domain || {}),
+          ]),
+        ].filter(d => d !== "unknown");
+        return {
+          categories: cats.length ? cats : DEFAULT_CATEGORIES,
+          live: overview.live_by_domain || {},
+          backtest: overview.backtest_by_domain || {},
+        };
+      }
+      const fromOverview = overview?.domains
+        ? Object.keys(overview.domains)
+        : DEFAULT_CATEGORIES;
+      return {
+        categories: fromOverview,
+        live: {},
+        backtest: {},
+      };
+    }
+
+    const fmt = (n, d = 4) => n == null ? "—" : Number(n).toFixed(d);
+    const pct = (n) => n == null ? "—" : `${(Number(n) * 100).toFixed(1)}%`;
+    const pctWithN = (rate, wins, total) => {
+      if (total == null || total === 0) return "n/a";
+      return `${(Number(rate) * 100).toFixed(1)}% (${wins}/${total})`;
+    };
+
+    const fmtNum = (n, d = 4) => {
+      if (n == null) return '<span class="num">—</span>';
+      const v = Number(n);
+      const cls = v > 0 ? "positive" : v < 0 ? "negative" : "";
+      return `<span class="num ${cls}">${v.toFixed(d)}</span>`;
+    };
+
+    const badge = (signal) => {
+      const s = (signal || "HOLD").toLowerCase();
+      return `<span class="badge ${s}">${signal || "HOLD"}</span>`;
+    };
+
+    const truncate = (text, max = 72) => {
+      if (!text) return "—";
+      return text.length > max ? text.slice(0, max) + "…" : text;
+    };
+
+    const marketCell = (question, id) => `
+      <div class="question">${truncate(question || id)}</div>
+      ${question ? `<div class="question-sub">#${id}</div>` : ""}
+    `;
+
+    function switchTab(name) {
+      document.querySelectorAll(".tab").forEach(t => t.classList.toggle("active", t.dataset.tab === name));
+      document.querySelectorAll(".tab-panel").forEach(p => p.classList.toggle("active", p.id === `tab-${name}`));
+    }
+
+    function domainQuery() {
+      return selectedDomain === "all" ? "" : `?domain=${encodeURIComponent(selectedDomain)}`;
+    }
+
+    function domainAmp() {
+      return selectedDomain === "all" ? "" : `&domain=${encodeURIComponent(selectedDomain)}`;
+    }
+
+    function setDomain(domain) {
+      selectedDomain = domain;
+      load();
+    }
+
+    function rateClass(rate) {
+      if (rate >= 0.5) return "good";
+      if (rate >= 0.25) return "warn";
+      return "bad";
+    }
+
+    function renderCategoryBar(categories) {
+      const bar = document.getElementById("category-bar");
+      const list = (categories || DEFAULT_CATEGORIES).filter(d => d !== "unknown");
+      const chips = [
+        `<button class="category-chip${selectedDomain === "all" ? " active" : ""}" onclick="setDomain('all')">All</button>`,
+        ...list.map(d => `
+            <button class="category-chip${selectedDomain === d ? " active" : ""}"
+                    onclick="setDomain('${d}')">${d}</button>
+          `),
+      ];
+      bar.innerHTML = `<span class="filter-label">Category</span>${chips.join("")}`;
+    }
+
+    function renderDomainWinGrid(domainStats) {
+      const grid = document.getElementById("domain-win-grid");
+      const stats = domainStats || { categories: [], live: {}, backtest: {} };
+      const categories = (stats.categories || []).filter(d => d !== "unknown");
+      const backtest = stats.backtest || {};
+      const live = stats.live || {};
+
+      if (!categories.length) {
+        grid.innerHTML = "";
+        return;
+      }
+
+      const cards = categories.map(domain => {
+        const bt = backtest[domain];
+        const liveRow = live[domain];
+        const actionable = bt?.actionable_signals ?? 0;
+        const wins = bt?.directional_wins ?? 0;
+        const rate = bt?.directional_win_rate ?? 0;
+        const rateLabel = actionable > 0
+          ? `${(rate * 100).toFixed(1)}%`
+          : "—";
+        const sub = actionable > 0
+          ? `${wins}/${actionable} backtest · ${liveRow?.signals ?? 0} live`
+          : `${liveRow?.signals ?? 0} live signals`;
+
+        return `
+          <button class="domain-win-card${selectedDomain === domain ? " active" : ""}"
+                  onclick="setDomain('${domain}')">
+            <div class="dw-name">${domain}</div>
+            <div class="dw-rate ${actionable > 0 ? rateClass(rate) : ""}">${rateLabel}</div>
+            <div class="dw-sub">${sub}</div>
+          </button>`;
+      });
+
+      const allBt = Object.values(backtest).reduce(
+        (acc, row) => ({
+          actionable: acc.actionable + (row.actionable_signals || 0),
+          wins: acc.wins + (row.directional_wins || 0),
+        }),
+        { actionable: 0, wins: 0 }
+      );
+      const allRate = allBt.actionable > 0 ? allBt.wins / allBt.actionable : 0;
+      const allLive = Object.values(live).reduce(
+        (sum, row) => sum + (row.signals || 0), 0
+      );
+
+      grid.innerHTML = `
+        <button class="domain-win-card${selectedDomain === "all" ? " active" : ""}"
+                onclick="setDomain('all')">
+          <div class="dw-name">All categories</div>
+          <div class="dw-rate ${allBt.actionable > 0 ? rateClass(allRate) : ""}">
+            ${allBt.actionable > 0 ? (allRate * 100).toFixed(1) + "%" : "—"}
+          </div>
+          <div class="dw-sub">${allBt.wins}/${allBt.actionable} backtest · ${allLive} live</div>
+        </button>
+        ${cards.join("")}
+      `;
+    }
+
+    function winRing(rate, wins, total) {
+      const r = 42;
+      const circ = 2 * Math.PI * r;
+      const pctVal = total > 0 ? rate : 0;
+      const offset = circ * (1 - pctVal);
+      const color = pctVal >= 0.5 ? "var(--yes)" : pctVal >= 0.3 ? "var(--warn)" : "var(--no)";
+      return `
+        <div class="win-ring">
+          <svg width="100" height="100" viewBox="0 0 100 100">
+            <circle class="track" cx="50" cy="50" r="${r}" />
+            <circle class="fill" cx="50" cy="50" r="${r}"
+              stroke="${color}"
+              stroke-dasharray="${circ}"
+              stroke-dashoffset="${offset}" />
+          </svg>
+          <div class="ring-label">
+            <div class="ring-pct">${total > 0 ? (pctVal * 100).toFixed(1) + "%" : "—"}</div>
+            <div class="ring-sub">win rate</div>
+          </div>
+        </div>
+      `;
+    }
+
+    function metricClass(rate) {
+      if (rate >= 0.5) return "good";
+      if (rate >= 0.25) return "warn";
+      return "bad";
+    }
+
+    function summarizeBacktestFromResults(rows, latest, domain) {
+      const actionable = rows.length;
+      const wins = rows.filter(r => r.directional_win).length;
+      const closed = rows.filter(r => r.edge_closed).length;
+      const meanEdgeAt = actionable
+        ? rows.reduce((s, r) => s + Math.abs(r.edge_at_t || 0), 0) / actionable
+        : 0;
+      const meanEdgeAfter = actionable
+        ? rows.reduce((s, r) => s + Math.abs(r.edge_at_t_plus || 0), 0) / actionable
+        : 0;
+      const reprices = rows
+        .map(r => r.minutes_to_reprice)
+        .filter(v => v != null);
+      return {
+        ...latest,
+        domain,
+        actionable_signals: actionable,
+        directional_wins: wins,
+        directional_win_rate: actionable ? wins / actionable : 0,
+        edge_closed_count: closed,
+        edge_closed_rate: actionable ? closed / actionable : 0,
+        mean_edge_at_signal: meanEdgeAt,
+        mean_edge_after: meanEdgeAfter,
+        mean_minutes_to_reprice: reprices.length
+          ? reprices.reduce((a, b) => a + b, 0) / reprices.length
+          : null,
+      };
+    }
+
+    function getDomainBacktestSlice(domainStats, overview, domain) {
+      return domainStats?.backtest?.[domain]
+        ?? overview?.backtest_by_domain?.[domain];
+    }
+
+    function applyDomainFilterToBacktest(latest, domainStats, overview, domain, results) {
+      if (!latest) return null;
+      if (domain === "all") return { ...latest, domain: null };
+
+      const slice = getDomainBacktestSlice(domainStats, overview, domain);
+      if (slice && slice.actionable_signals !== undefined) {
+        return {
+          ...latest,
+          domain,
+          actionable_signals: slice.actionable_signals,
+          directional_wins: slice.directional_wins,
+          directional_win_rate: slice.directional_win_rate,
+          edge_closed_count: slice.edge_closed_count,
+          edge_closed_rate: slice.edge_closed_rate,
+          mean_edge_at_signal: slice.mean_edge_at_signal ?? latest.mean_edge_at_signal,
+          mean_edge_after: slice.mean_edge_after ?? latest.mean_edge_after,
+          mean_minutes_to_reprice: slice.mean_minutes_to_reprice ?? latest.mean_minutes_to_reprice,
+        };
+      }
+
+      if (latest.domain === domain) return latest;
+
+      if (results?.length && results[0].domain !== undefined) {
+        const filtered = results.filter(r => r.domain === domain);
+        if (filtered.length) return summarizeBacktestFromResults(filtered, latest, domain);
+      }
+
+      return { ...latest, domain };
+    }
+
+    async function load() {
+      const dot = document.getElementById("status-dot");
+      const statusText = document.getElementById("status-text");
+      dot.classList.remove("error");
+      statusText.textContent = "Refreshing…";
+
+      try {
+        const dq = domainQuery();
+        const da = domainAmp();
+
+        const overview = await fetchJson(`/api/overview${dq}`);
+
+        let domainStats = normalizeDomainStats(null, overview);
+        try {
+          domainStats = normalizeDomainStats(
+            await fetchJson("/api/domains"),
+            overview,
+          );
+        } catch {
+          /* old API server without /api/domains — use overview fallback */
+        }
+
+        const [latest, signals, resultsRaw] = await Promise.all([
+          fetchJson("/api/backtest/latest").catch(() => null),
+          fetchJson(`/api/signals?limit=20${da}`).catch(() => []),
+          fetchJson(`/api/backtest/results?limit=20${da}`).catch(() => []),
+        ]);
+
+        let results = resultsRaw;
+        if (
+          selectedDomain !== "all"
+          && !getDomainBacktestSlice(domainStats, overview, selectedDomain)
+        ) {
+          results = await fetchJson(
+            `/api/backtest/results?limit=5000${da}`,
+          ).catch(() => resultsRaw);
+        }
+
+        const backtest = applyDomainFilterToBacktest(
+          latest,
+          domainStats,
+          overview,
+          selectedDomain,
+          results,
+        );
+
+        const apiStale = !overview.backtest_by_domain && !domainStats.backtest?.crypto;
+
+        statusText.textContent = "Live";
+        document.getElementById("last-updated").textContent =
+          `updated ${new Date().toLocaleTimeString()}`;
+
+        renderCategoryBar(domainStats.categories);
+        renderDomainWinGrid(domainStats);
+
+        const domainLabel = selectedDomain === "all"
+          ? "All categories"
+          : selectedDomain.charAt(0).toUpperCase() + selectedDomain.slice(1);
+
+        document.getElementById("overview").innerHTML = [
+          ["Markets", overview.markets, false],
+          ["Snapshots", Number(overview.snapshots).toLocaleString(), false],
+          ["Relationships", overview.relationships, false],
+          ["Live Signals", overview.signals, true],
+          ["Deep history", overview.markets_with_100_plus_snapshots, false],
+          ["Avg snaps / market", overview.avg_snapshots_per_market, false],
+        ].map(([label, value, highlight]) => `
+          <div class="stat-card${highlight ? " highlight" : ""}">
+            <div class="label">${label}</div>
+            <div class="value">${value ?? "—"}</div>
+          </div>
+        `).join("");
+
+        const btPanel = document.getElementById("backtest-panel");
+        const btMeta = document.getElementById("backtest-meta");
+
+        if (!backtest) {
+          btMeta.textContent = domainLabel;
+          btPanel.innerHTML = `
+            <div class="empty-state">
+              No backtest runs yet.<br>
+              <code>uv run run_backtest.py</code>
+            </div>`;
+        } else {
+          const lowSample = backtest.actionable_signals < 30;
+          const wr = backtest.directional_win_rate;
+          btMeta.textContent = `${domainLabel} · Run #${backtest.id}`;
+          const edgeAt = backtest.mean_edge_at_signal || 0;
+          const edgeAfter = backtest.mean_edge_after || 0;
+          const edgePct = edgeAt > 0 ? Math.min(100, (edgeAfter / edgeAt) * 100) : 0;
+
+          btPanel.innerHTML = `
+            <div class="backtest-hero">
+              <div>
+                <div class="backtest-run">
+                  Run <strong>#${backtest.id}</strong> ·
+                  ${backtest.started_at ? new Date(backtest.started_at).toLocaleString() : ""}
+                </div>
+                <div class="metrics-row">
+                  <div class="metric">
+                    <div class="metric-label">Actionable</div>
+                    <div class="metric-value">${backtest.actionable_signals.toLocaleString()}</div>
+                  </div>
+                  <div class="metric">
+                    <div class="metric-label">Wins</div>
+                    <div class="metric-value">${backtest.directional_wins.toLocaleString()}</div>
+                  </div>
+                  <div class="metric">
+                    <div class="metric-label">Edge closed</div>
+                    <div class="metric-value ${metricClass(backtest.edge_closed_rate)}">
+                      ${pctWithN(backtest.edge_closed_rate, backtest.edge_closed_count, backtest.actionable_signals)}
+                    </div>
+                  </div>
+                  <div class="metric">
+                    <div class="metric-label">Avg reprice</div>
+                    <div class="metric-value" style="font-size:1.1rem">
+                      ${backtest.mean_minutes_to_reprice != null
+                        ? `${Math.round(backtest.mean_minutes_to_reprice)}m` : "—"}
+                    </div>
+                  </div>
+                </div>
+                ${lowSample ? `<div class="alert">⚠ Low sample size — win rate not statistically meaningful yet (n &lt; 30).</div>` : ""}
+                ${apiStale && selectedDomain !== "all" ? `<div class="alert">⚠ Restart API server: <code>uv run run_api_server.py</code> — category backtest filter needs API v2.</div>` : ""}
+                <div class="edge-bar-wrap">
+                  Mean |edge| at signal → after horizon
+                  <div class="edge-bar" title="at: ${fmt(edgeAt)} → after: ${fmt(edgeAfter)}">
+                    <div class="at" style="width:${edgePct}%"></div>
+                    <div class="after" style="width:${100 - edgePct}%"></div>
+                  </div>
+                </div>
+              </div>
+              ${winRing(wr, backtest.directional_wins, backtest.actionable_signals)}
+            </div>`;
+        }
+
+        document.getElementById("signals").innerHTML = signals.length
+          ? signals.map(s => `
+            <tr>
+              <td>${marketCell(s.parent_question, s.parent_id)}${s.domain ? `<div class="domain-tag">${s.domain}</div>` : ""}</td>
+              <td>${marketCell(s.child_question, s.child_id)}</td>
+              <td>${fmtNum(s.expected)}</td>
+              <td>${fmtNum(s.observed)}</td>
+              <td>${fmtNum(s.edge)}</td>
+              <td>${fmt(s.confidence, 3)}</td>
+              <td>${badge(s.signal)}</td>
+            </tr>`).join("")
+          : `<tr><td colspan="7" class="empty-state">No live signals${selectedDomain !== "all" ? ` in ${selectedDomain}` : ""}</td></tr>`;
+
+        document.getElementById("backtest-results").innerHTML = results.length
+          ? results.map(r => `
+            <tr>
+              <td>${marketCell(r.parent_question, r.parent_id)}${r.domain ? `<div class="domain-tag">${r.domain}</div>` : ""}</td>
+              <td>${marketCell(r.child_question, r.child_id)}</td>
+              <td>${badge(r.signal)}</td>
+              <td>${fmtNum(r.edge_at_t)}</td>
+              <td>${fmtNum(r.edge_at_t_plus)}</td>
+              <td>
+                <span class="win-icon ${r.directional_win ? "win" : "loss"}">
+                  ${r.directional_win ? "✓" : "✗"}
+                </span>
+              </td>
+              <td>${fmtNum(r.simple_pnl)}</td>
+            </tr>`).join("")
+          : `<tr><td colspan="7" class="empty-state">No backtest results${selectedDomain !== "all" ? ` in ${selectedDomain}` : ""}</td></tr>`;
+
+      } catch (err) {
+        dot.classList.add("error");
+        statusText.textContent = "Error";
+        document.getElementById("backtest-panel").innerHTML =
+          `<div class="empty-state" style="color:var(--no)">Failed to load: ${err.message}</div>`;
+      }
+    }
+
+    load();
+    setInterval(load, 60_000);
+  </script>
+</body>
+</html>

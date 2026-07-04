@@ -113,15 +113,33 @@ def load_price_history(conn: PgConnection, market_ids: list[str]) -> pd.DataFram
     )
 
 
-def load_price_matrix(history: pd.DataFrame) -> pd.DataFrame:
+def bucket_history_to_hourly(history: pd.DataFrame) -> pd.DataFrame:
+    """Collapse snapshots to hourly buckets (last observation per hour)."""
+    if history.empty:
+        return history
+
+    bucketed = history.copy()
+    bucketed["recorded_at"] = pd.to_datetime(bucketed["recorded_at"], utc=True).dt.floor("h")
+    grouped = (
+        bucketed.sort_values("recorded_at")
+        .groupby(["recorded_at", "market_id"], as_index=False)
+    )
+    if "question" in bucketed.columns:
+        return grouped.agg({"yes_probability": "last", "question": "last"})
+    return grouped.agg({"yes_probability": "last"})
+
+
+def load_price_matrix(history: pd.DataFrame, *, hourly: bool = True) -> pd.DataFrame:
     """
     Wide matrix of yes probabilities aligned on time, forward-filled.
     """
     if history.empty:
         return pd.DataFrame()
 
+    aligned = bucket_history_to_hourly(history) if hourly else history.copy()
+
     wide = (
-        history.pivot(index="recorded_at", columns="market_id", values="yes_probability")
+        aligned.pivot(index="recorded_at", columns="market_id", values="yes_probability")
         .sort_index()
         .astype(float)
         .ffill()
