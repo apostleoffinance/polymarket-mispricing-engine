@@ -12,7 +12,7 @@ use crate::models::{Market, ScrapedMarket};
 
 const GAMMA_EVENTS_URL: &str = "https://gamma-api.polymarket.com/events";
 const PAGE_SIZE: usize = 100;
-const MAX_PAGES_PER_DOMAIN: usize = 50;
+const DEFAULT_MAX_PAGES_PER_DOMAIN: usize = 10;
 
 #[derive(Debug, Deserialize)]
 struct GammaEvent {
@@ -75,11 +75,16 @@ pub async fn fetch_domain_markets(
 ) -> Result<Vec<ScrapedMarket>, Box<dyn std::error::Error>> {
     let mut by_id: HashMap<String, ScrapedMarket> = HashMap::new();
     let mut domain_counts: HashMap<&str, usize> = HashMap::new();
+    let max_pages_per_domain = std::env::var("MAX_PAGES_PER_DOMAIN")
+        .ok()
+        .and_then(|value| value.parse::<usize>().ok())
+        .filter(|value| *value > 0)
+        .unwrap_or(DEFAULT_MAX_PAGES_PER_DOMAIN);
 
     for (domain, tag_slug) in DOMAIN_TAGS {
         let mut domain_new = 0usize;
 
-        for page in 0..MAX_PAGES_PER_DOMAIN {
+        for page in 0..max_pages_per_domain {
             let offset = page * PAGE_SIZE;
             let url = format!(
                 "{GAMMA_EVENTS_URL}?tag_slug={tag_slug}&active=true&closed=false&limit={PAGE_SIZE}&offset={offset}"
@@ -130,6 +135,7 @@ pub async fn fetch_domain_markets(
     }
 
     println!("Markets fetched by domain:");
+    println!("Max pages per domain: {max_pages_per_domain}");
     for (domain, tag_slug) in DOMAIN_TAGS {
         println!(
             "  {domain} (tag={tag_slug}): {}",

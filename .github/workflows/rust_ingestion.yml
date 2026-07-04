@@ -20,7 +20,13 @@ jobs:
       - name: Install Rust
         uses: actions-rust-lang/setup-rust-toolchain@v1
 
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust_engine
+
       - name: Run Rust collector
         run: cargo run --release
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          MAX_PAGES_PER_DOMAIN: "10"
