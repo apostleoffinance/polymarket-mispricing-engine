@@ -1,0 +1,26 @@
+name: Rust Ingestion
+
+on:
+  schedule:
+    - cron: "0 * * * *" # Every hour
+  workflow_dispatch:
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: rust_engine
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+
+      - name: Run Rust collector
+        run: cargo run --release
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
