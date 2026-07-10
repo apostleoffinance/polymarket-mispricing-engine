@@ -631,17 +631,39 @@
       dot.classList.remove("error");
       status.textContent = "Refreshing";
       try {
+        // Load independently so one slow endpoint cannot blank the whole page.
+        const healthP = api("/api/health").catch((e) => ({ error: e }));
+        const domainsP = api("/api/domains");
+        const latestP = api(`/api/backtest/latest${q()}`);
+        const signalsP = api(`/api/signals?limit=20${amp()}`);
+        const candidatesP = api(`/api/candidates?limit=30${amp()}`).catch(() => []);
+        const resultsP = api(`/api/backtest/results?limit=20${amp()}`);
+        const overviewP = api(`/api/overview${q()}`).catch((e) => ({
+          error: e,
+          markets: 0,
+          snapshots: 0,
+          relationships: 0,
+          signals: 0,
+          candidates: { total: 0, promoted: 0, proposed: 0, rejected: 0 },
+          edge_dynamics: {},
+        }));
+
         const [health, overview, domains, latest, signals, candidates, results] = await Promise.all([
-          api("/api/health"),
-          api(`/api/overview${q()}`),
-          api("/api/domains"),
-          api(`/api/backtest/latest${q()}`),
-          api(`/api/signals?limit=20${amp()}`),
-          api(`/api/candidates?limit=30${amp()}`),
-          api(`/api/backtest/results?limit=20${amp()}`),
+          healthP,
+          overviewP,
+          domainsP,
+          latestP,
+          signalsP,
+          candidatesP,
+          resultsP,
         ]);
+
         if (buildTag) {
-          buildTag.textContent = `API v${health.version || "?"} · ${(health.features || []).includes("enrichment_panel") ? "enrichment live" : "old deploy"}`;
+          if (health?.version) {
+            buildTag.textContent = `API v${health.version} · ${(health.features || []).includes("enrichment_panel") ? "enrichment live" : "old deploy"}`;
+          } else {
+            buildTag.textContent = "health check failed";
+          }
         }
         renderFilters(domains.categories || DEFAULT_CATEGORIES);
         renderEnrichment(overview, latest);
@@ -654,7 +676,9 @@
         renderResults(results);
         renderSources(latest);
         setTab(activeTab);
-        status.textContent = `Live · ${new Date().toLocaleTimeString()}`;
+        status.textContent = overview?.error
+          ? `Partial · overview slow · ${new Date().toLocaleTimeString()}`
+          : `Live · ${new Date().toLocaleTimeString()}`;
       } catch (error) {
         console.error(error);
         dot.classList.add("error");

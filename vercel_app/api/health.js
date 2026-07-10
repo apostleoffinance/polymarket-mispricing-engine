@@ -1,7 +1,7 @@
 export default function handler(_req, res) {
   res.status(200).json({
     status: "ok",
-    version: 3,
+    version: 4,
     runtime: "vercel",
     features: [
       "domains",

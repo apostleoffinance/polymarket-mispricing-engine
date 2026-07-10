@@ -27,19 +27,10 @@ Connects to the same Neon PostgreSQL database used by the Rust ingestion and res
 
 Your dashboard will be live at `https://<project>.vercel.app`.
 
-## Deploy (GitHub Actions)
+## Deploy (recommended: Vercel Git integration)
 
-For automatic deploys on push to `main`, add these GitHub repository secrets:
-
-| Secret | Where to find it |
-|--------|------------------|
-| `VERCEL_TOKEN` | Vercel → Settings → Tokens |
-| `VERCEL_ORG_ID` | Vercel project → Settings → General |
-| `VERCEL_PROJECT_ID` | Vercel project → Settings → General |
-
-`DATABASE_URL` is **not** a GitHub secret for deploy — set it in Vercel project environment variables.
-
-The workflow `.github/workflows/vercel_dashboard.yml` runs on pushes to `vercel_app/` and via manual dispatch.
+Import the repo on [Vercel](https://vercel.com/new) with **Root Directory** = `vercel_app`.
+Vercel redeploys automatically on pushes to `main`. No GitHub Actions deploy workflow is required.
 
 ## Local development
 
