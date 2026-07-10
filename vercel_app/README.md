@@ -5,11 +5,13 @@ Connects to the same Neon PostgreSQL database used by the Rust ingestion and res
 
 ## What you see
 
-- **Overview** — markets, snapshots, relationships, signal counts
+- **Overview** — markets, snapshots, relationships, signals, candidate counts, lag/stability
 - **Domain cards** — backtest win rate and live signal count per category
 - **Latest backtest** — actionable signals, wins, edge closure, reprice time
-- **Research alerts** — low sample warnings, stale backtest, thin history
-- **Live signals** and **backtest results** tables
+- **Research alerts** — low sample, enrichment status, stale backtest
+- **Live signals** — edge + grounded explanation + lead/lag + stability
+- **Candidates** — proposed / promoted / rejected relationships (token + LLM)
+- **Backtest results** — latest walk-forward outcomes
 
 ## Deploy (recommended: Vercel UI)
 
@@ -60,10 +62,14 @@ GET /api/overview?domain=politics
 GET /api/domains
 GET /api/signals?limit=20
 GET /api/signals?limit=20&domain=crypto
+GET /api/candidates?limit=30
+GET /api/candidates?status=promoted
 GET /api/backtest/latest
 GET /api/backtest/latest?domain=politics
 GET /api/backtest/results?limit=50
 ```
+
+Signal payloads include `explanation`, `lag_minutes`, `lead_correlation`, and `stability_score` when available.
 
 ## Research baseline (Phase A)
 

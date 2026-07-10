@@ -39,6 +39,94 @@ export function sendError(res, error) {
   });
 }
 
+export function parseReasonJson(value) {
+  if (!value) return {};
+  if (typeof value === "object") return value;
+  try {
+    return JSON.parse(String(value));
+  } catch {
+    return {};
+  }
+}
+
+export function enrichSignalRow(row) {
+  const reason = parseReasonJson(row.reason_json);
+  const lagMinutes =
+    row.lag_minutes != null
+      ? Number(row.lag_minutes)
+      : reason.lag_minutes != null
+        ? Number(reason.lag_minutes)
+        : null;
+  const leadCorrelation =
+    row.lead_correlation != null
+      ? toNumber(row.lead_correlation)
+      : reason.lead_correlation != null
+        ? Number(reason.lead_correlation)
+        : null;
+  const stabilityScore =
+    row.stability_score != null
+      ? toNumber(row.stability_score)
+      : reason.stability_score != null
+        ? Number(reason.stability_score)
+        : null;
+
+  return {
+    parent_id: row.parent_market,
+    parent_question: row.parent_question,
+    domain: row.domain,
+    child_id: row.related_market,
+    child_question: row.child_question,
+    expected: row.expected_probability === null ? null : toNumber(row.expected_probability),
+    observed: row.observed_probability === null ? null : toNumber(row.observed_probability),
+    edge: row.edge === null ? null : toNumber(row.edge),
+    confidence: row.confidence === null ? null : toNumber(row.confidence),
+    signal: row.signal,
+    created_at: toIso(row.created_at),
+    explanation: reason.explanation || null,
+    lag_minutes: Number.isFinite(lagMinutes) ? lagMinutes : null,
+    lead_correlation: leadCorrelation,
+    stability_score: stabilityScore,
+    beta: reason.beta != null ? Number(reason.beta) : null,
+    correlation_shrunk:
+      reason.correlation_shrunk != null ? Number(reason.correlation_shrunk) : null,
+    n_observations:
+      reason.n_observations != null ? Number(reason.n_observations) : null,
+    relationship_type: reason.relationship_type || row.relationship_type || null,
+  };
+}
+
+export async function fetchCandidateStats(db = sql()) {
+  try {
+    const rows = await db`
+      SELECT
+        status,
+        COUNT(*)::int AS count
+      FROM candidate_relationships
+      GROUP BY status
+    `;
+    const byStatus = Object.fromEntries(
+      rows.map((row) => [row.status, toNumber(row.count)]),
+    );
+    return {
+      proposed: byStatus.proposed || 0,
+      validated: byStatus.validated || 0,
+      promoted: byStatus.promoted || 0,
+      rejected: byStatus.rejected || 0,
+      total: Object.values(byStatus).reduce((sum, n) => sum + n, 0),
+    };
+  } catch (error) {
+    console.warn("candidate_relationships unavailable:", error.message || error);
+    return {
+      proposed: 0,
+      validated: 0,
+      promoted: 0,
+      rejected: 0,
+      total: 0,
+      unavailable: true,
+    };
+  }
+}
+
 export async function fetchLiveByDomain(db = sql()) {
   const rows = await db`
     SELECT

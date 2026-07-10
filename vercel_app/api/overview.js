@@ -1,5 +1,6 @@
 import {
   fetchBacktestByDomain,
+  fetchCandidateStats,
   fetchLiveByDomain,
   normalizeDomain,
   sendError,
@@ -92,6 +93,46 @@ export default async function handler(req, res) {
           ) t
         `;
 
+    let edgeDynamics = {
+      with_lag: 0,
+      mean_abs_lag_minutes: null,
+      mean_stability: null,
+    };
+    try {
+      const [dyn] = domain
+        ? await db`
+            SELECT
+              COUNT(*) FILTER (WHERE COALESCE(lag_minutes, 0) <> 0)::int AS with_lag,
+              AVG(ABS(lag_minutes)) FILTER (WHERE lag_minutes IS NOT NULL) AS mean_abs_lag,
+              AVG(stability_score) FILTER (WHERE stability_score IS NOT NULL) AS mean_stability
+            FROM market_relationships r
+            JOIN markets m ON m.id = r.parent_market_id
+            WHERE r.parent_market_id IS NOT NULL
+              AND m.domain = ${domain}
+          `
+        : await db`
+            SELECT
+              COUNT(*) FILTER (WHERE COALESCE(lag_minutes, 0) <> 0)::int AS with_lag,
+              AVG(ABS(lag_minutes)) FILTER (WHERE lag_minutes IS NOT NULL) AS mean_abs_lag,
+              AVG(stability_score) FILTER (WHERE stability_score IS NOT NULL) AS mean_stability
+            FROM market_relationships
+            WHERE parent_market_id IS NOT NULL
+          `;
+      edgeDynamics = {
+        with_lag: toNumber(dyn?.with_lag),
+        mean_abs_lag_minutes:
+          dyn?.mean_abs_lag === null || dyn?.mean_abs_lag === undefined
+            ? null
+            : Number(dyn.mean_abs_lag),
+        mean_stability:
+          dyn?.mean_stability === null || dyn?.mean_stability === undefined
+            ? null
+            : Number(dyn.mean_stability),
+      };
+    } catch (error) {
+      console.warn("edge dynamics unavailable:", error.message || error);
+    }
+
     const domainRows = await db`
       SELECT domain, COUNT(*)::int AS count
       FROM markets
@@ -102,6 +143,7 @@ export default async function handler(req, res) {
 
     const liveByDomain = await fetchLiveByDomain(db);
     const { latestRunId, rows: backtestByDomain } = await fetchBacktestByDomain(db);
+    const candidates = await fetchCandidateStats(db);
 
     res.status(200).json({
       domain,
@@ -116,6 +158,8 @@ export default async function handler(req, res) {
       live_by_domain: liveByDomain,
       backtest_by_domain: backtestByDomain,
       latest_backtest_run_id: latestRunId,
+      candidates,
+      edge_dynamics: edgeDynamics,
     });
   } catch (error) {
     sendError(res, error);
