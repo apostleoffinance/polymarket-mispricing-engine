@@ -53,6 +53,7 @@ CREATE TABLE IF NOT EXISTS market_relationships (
     lag_minutes       INTEGER,
     lead_correlation  NUMERIC(20, 10),
     stability_score   NUMERIC(20, 10),
+    discovery_source  TEXT,
     created_at        TIMESTAMP DEFAULT NOW()
 );
 

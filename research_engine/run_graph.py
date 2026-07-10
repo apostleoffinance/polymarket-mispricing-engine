@@ -109,6 +109,10 @@ def main() -> None:
             markets,
             existing_pairs=existing_pairs
             | {_pair_key(c.parent_id, c.child_id) for c in token_candidates},
+            connected_market_ids={
+                edge.parent_id for edge in all_edges
+            }
+            | {edge.child_id for edge in all_edges},
         )
 
         proposed = 0

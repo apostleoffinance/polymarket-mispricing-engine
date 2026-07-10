@@ -24,7 +24,9 @@ from config import (
 from models import MarketNode, RelationshipCandidate
 
 _SYSTEM_PROMPT = (
-    "You are a quantitative research assistant for prediction markets. "
+    "You are a senior quantitative researcher mapping a prediction-market "
+    "knowledge graph. Your job is to propose the best-fit parent→child "
+    "relationships for correlation and informational lead/lag — not to trade. "
     "Return JSON only. Never invent market ids."
 )
 
@@ -47,13 +49,14 @@ def propose_llm_hypotheses(
     markets: list[MarketNode],
     *,
     existing_pairs: set[tuple[str, str]] | None = None,
+    connected_market_ids: set[str] | None = None,
     max_markets: int = HYPOTHESIS_LLM_MAX_MARKETS,
     max_suggestions: int = HYPOTHESIS_LLM_MAX_SUGGESTIONS,
 ) -> list[RelationshipCandidate]:
     """
-    Ask an LLM for semantic relationship hypotheses.
+    Ask an LLM for best-fit semantic / causal relationship hypotheses.
 
-    Tries OpenAI then Gemini (or whatever order is configured). Soft-fails
+    Focuses on under-connected markets and cross-domain links. Soft-fails
     to [] if every provider errors — token-overlap candidates still run.
     """
     providers = _available_providers()
@@ -61,8 +64,22 @@ def propose_llm_hypotheses(
         return []
 
     existing = existing_pairs or set()
-    ranked = sorted(markets, key=lambda m: m.volume, reverse=True)[:max_markets]
-    if len(ranked) < 2:
+    connected = connected_market_ids or set()
+    ranked = sorted(markets, key=lambda m: m.volume, reverse=True)
+    orphans = [m for m in ranked if m.id not in connected]
+    focus = (orphans + ranked)[:max_markets]
+    # Deduplicate while preserving order.
+    seen_ids: set[str] = set()
+    focus_markets: list[MarketNode] = []
+    for market in focus:
+        if market.id in seen_ids:
+            continue
+        seen_ids.add(market.id)
+        focus_markets.append(market)
+        if len(focus_markets) >= max_markets:
+            break
+
+    if len(focus_markets) < 2:
         return []
 
     catalog = [
@@ -70,24 +87,31 @@ def propose_llm_hypotheses(
             "id": market.id,
             "domain": market.domain,
             "question": market.question[:180],
+            "has_existing_edges": market.id in connected,
+            "volume": float(market.volume),
         }
-        for market in ranked
+        for market in focus_markets
     ]
     prompt = {
         "task": (
-            "Propose parent→child market relationships that may be causally "
-            "or informationally linked. Prefer cross-domain links when "
-            "sensible. Do not invent market ids."
+            "Map the best-fit parent→child relationships for a correlation "
+            "graph. Prefer: (1) under-connected markets, (2) cross-domain "
+            "links with a clear informational channel, (3) pairs where the "
+            "parent is likely to lead the child. Avoid trivial duplicates of "
+            "already-linked pairs. Do not invent market ids."
         ),
         "markets": catalog,
+        "already_linked_pair_count": len(existing),
         "max_suggestions": max_suggestions,
         "output_schema": {
             "suggestions": [
                 {
                     "parent_id": "market id",
                     "child_id": "market id",
-                    "rationale": "one short sentence",
+                    "rationale": "why this is a best-fit correlation / lead-lag link",
                     "confidence": 0.0,
+                    "expected_sign": "positive|negative",
+                    "expected_lag_hours": 0,
                 }
             ]
         },
@@ -119,7 +143,7 @@ def propose_llm_hypotheses(
     print(f"Hypothesis LLM used provider: {used_provider}")
     source = f"llm_{used_provider}"
 
-    by_id = {market.id: market for market in ranked}
+    by_id = {market.id: market for market in focus_markets}
     candidates: list[RelationshipCandidate] = []
     seen: set[tuple[str, str]] = set()
 
@@ -137,7 +161,19 @@ def propose_llm_hypotheses(
         child = by_id[child_id]
         confidence = float(item.get("confidence") or 0.5)
         confidence = max(0.0, min(1.0, confidence))
-        rationale = str(item.get("rationale") or "LLM semantic hypothesis").strip()
+        expected_sign = str(item.get("expected_sign") or "").strip().lower()
+        lag_hours = item.get("expected_lag_hours")
+        rationale = str(item.get("rationale") or "LLM best-fit hypothesis").strip()
+        extras = []
+        if expected_sign in {"positive", "negative"}:
+            extras.append(f"sign={expected_sign}")
+        if lag_hours is not None:
+            try:
+                extras.append(f"lag≈{float(lag_hours):.0f}h")
+            except (TypeError, ValueError):
+                pass
+        if extras:
+            rationale = f"{rationale} [{', '.join(extras)}]"
 
         candidates.append(
             RelationshipCandidate(
@@ -232,6 +268,5 @@ def _parse_json_content(content: str) -> dict[str, Any]:
     if not isinstance(parsed, dict):
         raise ValueError("LLM JSON root must be an object")
     if "suggestions" not in parsed:
-        # Some models wrap under a different key; normalize empty.
         parsed = {"suggestions": parsed if isinstance(parsed, list) else []}
     return parsed

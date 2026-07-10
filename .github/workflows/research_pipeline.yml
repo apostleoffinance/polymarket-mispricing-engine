@@ -28,29 +28,34 @@ jobs:
       - name: Install dependencies
         run: uv sync
 
-      - name: Apply graph enrichment migration
+      - name: Apply graph enrichment migrations
         run: |
           uv run python - <<'PY'
           from pathlib import Path
           from db import connect
 
-          raw = Path("../sql/migrations/011_candidate_relationships_and_edge_dynamics.sql").read_text()
-          statements = []
-          buf = []
-          for line in raw.splitlines():
-              stripped = line.strip()
-              if stripped.startswith("--") or not stripped:
-                  continue
-              buf.append(line)
-              if stripped.endswith(";"):
-                  statements.append("\n".join(buf))
-                  buf = []
+          migrations = [
+              Path("../sql/migrations/011_candidate_relationships_and_edge_dynamics.sql"),
+              Path("../sql/migrations/012_discovery_source.sql"),
+          ]
           with connect() as conn:
               with conn.cursor() as cur:
-                  for stmt in statements:
-                      cur.execute(stmt)
+                  for path in migrations:
+                      raw = path.read_text()
+                      statements = []
+                      buf = []
+                      for line in raw.splitlines():
+                          stripped = line.strip()
+                          if stripped.startswith("--") or not stripped:
+                              continue
+                          buf.append(line)
+                          if stripped.endswith(";"):
+                              statements.append("\n".join(buf))
+                              buf = []
+                      for stmt in statements:
+                          cur.execute(stmt)
+                      print(f"Applied {path.name} ({len(statements)} statements)")
               conn.commit()
-          print(f"Migration 011 applied ({len(statements)} statements)")
           PY
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}

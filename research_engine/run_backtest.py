@@ -86,6 +86,8 @@ def _print_run_header(
     print(f"Min train window:    {settings.min_train_snapshots} snapshots")
     print(f"Walk-forward only:   {settings.walk_forward_only}")
     print(f"Win requires PnL>0:  {settings.win_requires_pnl}")
+    print(f"Use lag horizon:     {settings.use_lag_horizon}")
+    print(f"Min stability:       {settings.min_stability}")
     print(f"Domains:             {settings.domains or 'all'}")
     print()
 
@@ -166,6 +168,17 @@ def main() -> None:
         "pairs_replay": diagnostics.pairs_replay,
         "walk_forward_signals": diagnostics.walk_forward_signals,
         "replay_signals": diagnostics.replay_signals,
+        "pairs_agent_sourced": diagnostics.pairs_agent_sourced,
+        "agent_signals": diagnostics.agent_signals,
+        "pairs_skipped_stability": diagnostics.pairs_skipped_stability,
+        "source_summaries": {
+            source: {
+                "actionable_signals": summary.actionable_signals,
+                "directional_wins": summary.directional_wins,
+                "directional_win_rate": summary.directional_win_rate,
+            }
+            for source, summary in diagnostics.source_summaries.items()
+        },
     }
 
     with connect() as conn:
@@ -180,11 +193,27 @@ def main() -> None:
     print(f"Pairs replay fallback:   {diagnostics.pairs_replay}")
     print(f"Walk-forward signals:    {diagnostics.walk_forward_signals}")
     print(f"Replay signals:          {diagnostics.replay_signals}")
+    print(f"Agent-sourced pairs:     {diagnostics.pairs_agent_sourced}")
+    print(f"Agent-sourced signals:   {diagnostics.agent_signals}")
+    print(f"Skipped (stability):     {diagnostics.pairs_skipped_stability}")
     print()
     _print_summary("Walk-forward component", diagnostics.walk_forward_summary)
     print()
     _print_summary("Replay component", diagnostics.replay_summary)
     print()
+
+    if diagnostics.source_summaries:
+        print("Win rate by discovery source")
+        print("-" * 40)
+        for source, source_summary in diagnostics.source_summaries.items():
+            if source_summary.actionable_signals == 0:
+                continue
+            print(
+                f"  {source}: {source_summary.directional_win_rate:.1%} "
+                f"({source_summary.directional_wins}/"
+                f"{source_summary.actionable_signals})"
+            )
+        print()
 
     if diagnostics.domain_summaries:
         print("Win rate by domain")

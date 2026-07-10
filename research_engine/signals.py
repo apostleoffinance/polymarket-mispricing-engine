@@ -114,9 +114,10 @@ def upsert_relationship(conn: PgConnection, edge: DiscoveredEdge) -> bool:
                 n_observations,
                 lag_minutes,
                 lead_correlation,
-                stability_score
+                stability_score,
+                discovery_source
             )
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (parent_market_id, related_market_id, relationship_type)
             DO UPDATE SET
                 parent_market = EXCLUDED.parent_market,
@@ -129,7 +130,11 @@ def upsert_relationship(conn: PgConnection, edge: DiscoveredEdge) -> bool:
                 n_observations = EXCLUDED.n_observations,
                 lag_minutes = EXCLUDED.lag_minutes,
                 lead_correlation = EXCLUDED.lead_correlation,
-                stability_score = EXCLUDED.stability_score
+                stability_score = EXCLUDED.stability_score,
+                discovery_source = COALESCE(
+                    EXCLUDED.discovery_source,
+                    market_relationships.discovery_source
+                )
             """,
             (
                 edge.parent_label,
@@ -146,6 +151,7 @@ def upsert_relationship(conn: PgConnection, edge: DiscoveredEdge) -> bool:
                 edge.lag_minutes,
                 Decimal(str(edge.lead_correlation)),
                 Decimal(str(edge.stability_score)),
+                edge.discovery_source,
             ),
         )
         return cur.rowcount > 0

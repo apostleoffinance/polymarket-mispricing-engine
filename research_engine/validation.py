@@ -169,6 +169,8 @@ def build_edge_from_pair(
     parent: MarketNode,
     child: MarketNode,
     price_matrix: pd.DataFrame,
+    *,
+    discovery_source: str = "token_overlap",
 ) -> DiscoveredEdge | None:
     if parent.id not in price_matrix.columns or child.id not in price_matrix.columns:
         return None
@@ -215,6 +217,7 @@ def build_edge_from_pair(
         lag_minutes=stats.lag_minutes,
         lead_correlation=stats.lead_correlation,
         stability_score=stats.stability_score,
+        discovery_source=discovery_source,
     )
 
 
@@ -275,7 +278,12 @@ def validate_pending_candidates(
 
         # Re-orient by volume first, then lead/lag inside build_edge_from_pair.
         oriented_parent, oriented_child = _orient_parent_child(parent, child)
-        edge = build_edge_from_pair(oriented_parent, oriented_child, price_matrix)
+        edge = build_edge_from_pair(
+            oriented_parent,
+            oriented_child,
+            price_matrix,
+            discovery_source=str(row.get("source") or "token_overlap"),
+        )
         if edge is None:
             _mark_candidate(
                 conn,

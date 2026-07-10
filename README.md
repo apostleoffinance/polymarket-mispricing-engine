@@ -190,9 +190,10 @@ psql "$DATABASE_URL" -f sql/migrations/008_signal_confidence.sql
 psql "$DATABASE_URL" -f sql/migrations/009_backtest.sql
 psql "$DATABASE_URL" -f sql/migrations/010_clob_tokens_and_history_index.sql
 psql "$DATABASE_URL" -f sql/migrations/011_candidate_relationships_and_edge_dynamics.sql
+psql "$DATABASE_URL" -f sql/migrations/012_discovery_source.sql
 ```
 
-Migration `011` is also applied automatically by the research pipeline CI job.
+Migration `011`/`012` are also applied automatically by the research pipeline CI job.
 
 ---
 

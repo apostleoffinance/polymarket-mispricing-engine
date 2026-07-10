@@ -97,6 +97,7 @@ def discover_edges_for_domain(
                     lag_minutes=oriented_stats.lag_minutes,
                     lead_correlation=oriented_stats.lead_correlation,
                     stability_score=oriented_stats.stability_score,
+                    discovery_source="within_domain_scan",
                 )
             )
 

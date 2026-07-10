@@ -59,6 +59,10 @@ BACKTEST_WALK_FORWARD_ONLY: bool = True
 BACKTEST_WIN_REQUIRES_PNL: bool = True
 # None = all domains; set e.g. ("politics", "geopolitics") to exclude noisy domains.
 BACKTEST_DOMAINS: tuple[str, ...] | None = None
+# Use measured lead/lag to set evaluation horizon (max with BACKTEST_HORIZON_MINUTES).
+BACKTEST_USE_LAG_HORIZON: bool = True
+# Skip edges with known stability below this (0 = disabled; unknown/0.0 kept).
+BACKTEST_MIN_STABILITY: float = 0.35
 
 # Grid search defaults (run_optimize_backtest.py).
 OPTIMIZE_MIN_SIGNALS: int = 50

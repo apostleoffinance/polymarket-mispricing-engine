@@ -83,18 +83,20 @@ psql -h localhost -p 5433 -d polymarket -f ../sql/migrations/008_signal_confiden
 psql -h localhost -p 5433 -d polymarket -f ../sql/migrations/009_backtest.sql
 psql -h localhost -p 5433 -d polymarket -f ../sql/migrations/010_clob_tokens_and_history_index.sql
 psql -h localhost -p 5433 -d polymarket -f ../sql/migrations/011_candidate_relationships_and_edge_dynamics.sql
+psql -h localhost -p 5433 -d polymarket -f ../sql/migrations/012_discovery_source.sql
 ```
 
 ## Backtesting
 
 Walk-forward replay (`backtest.py`):
 
-1. Train OLS on history **strictly before** each timestamp
-2. Emit virtual BUY/SELL/HOLD (same rules as live signals)
-3. Measure child price at next snapshot within horizon
-4. Score directional win, edge closure, simple PnL
+1. Train OLS **and lead/lag** on history strictly before each timestamp
+2. Emit virtual BUY/SELL/HOLD
+3. Evaluate child at a **lag-aware horizon** (`max(60m, |lag|)`)
+4. Filter unstable edges (`BACKTEST_MIN_STABILITY`)
+5. Report win rate by **discovery source** (within-domain scan vs token/LLM agents)
 
-Results in `backtest_runs` and `backtest_results`.
+Design rule: **LLM may propose; statistics may promote; backtest measures both.**
 
 ## Graph enrichment (candidates → validation → promote)
 

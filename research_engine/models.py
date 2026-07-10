@@ -31,6 +31,7 @@ class DiscoveredEdge:
     lag_minutes: int = 0
     lead_correlation: float = 0.0
     stability_score: float = 0.0
+    discovery_source: str = "within_domain_scan"
 
 
 @dataclass(frozen=True)
