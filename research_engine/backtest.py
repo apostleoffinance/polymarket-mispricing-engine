@@ -485,14 +485,20 @@ def summarize_by_domain(outcomes: list[BacktestOutcome]) -> dict[str, BacktestSu
 
 
 def run_backtest(
-    conn: PgConnection,
+    edges: list[DiscoveredEdge],
     history: pd.DataFrame,
     centrality: dict[str, float],
     domain_by_parent: dict[str, str | None],
     settings: BacktestSettings | None = None,
 ) -> tuple[list[BacktestOutcome], BacktestSummary, BacktestDiagnostics]:
     settings = settings or BacktestSettings.from_config()
-    edges = load_relationships(conn, domains=settings.domains)
+    if settings.domains:
+        domain_set = set(settings.domains)
+        edges = [
+            edge
+            for edge in edges
+            if domain_by_parent.get(edge.parent_id) in domain_set
+        ]
     all_outcomes: list[BacktestOutcome] = []
     walk_forward_outcomes: list[BacktestOutcome] = []
     replay_outcomes: list[BacktestOutcome] = []

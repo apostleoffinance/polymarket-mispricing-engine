@@ -59,7 +59,7 @@ def _load_context(conn):
         for market_id, value in cur.fetchall():
             centrality[market_id] = float(value or 0.0)
 
-    return history, domain_by_parent, centrality
+    return edges, history, domain_by_parent, centrality
 
 
 def main() -> None:
@@ -113,53 +113,53 @@ def main() -> None:
 
     with connect() as conn:
         context = _load_context(conn)
-        if context is None:
-            print("No relationships found. Run `uv run run_graph.py` first.")
-            return
+    if context is None:
+        print("No relationships found. Run `uv run run_graph.py` first.")
+        return
 
-        history, domain_by_parent, centrality = context
+    edges, history, domain_by_parent, centrality = context
 
-        total = (
-            len(edge_grid)
-            * len(confidence_grid)
-            * len(correlation_grid)
-            * len(mode_grid)
+    total = (
+        len(edge_grid)
+        * len(confidence_grid)
+        * len(correlation_grid)
+        * len(mode_grid)
+    )
+    print(f"Grid search: {total} configurations")
+    print(f"Min signals: {args.min_signals} | Target win rate: {args.target_win_rate:.0%}")
+    print("=" * 72)
+
+    for index, (edge, confidence, correlation, wf_only) in enumerate(
+        itertools.product(edge_grid, confidence_grid, correlation_grid, mode_grid),
+        start=1,
+    ):
+        settings = base.with_overrides(
+            edge_buy_threshold=edge,
+            edge_sell_threshold=-edge,
+            min_signal_confidence=confidence,
+            correlation_threshold=correlation,
+            walk_forward_only=wf_only,
         )
-        print(f"Grid search: {total} configurations")
-        print(f"Min signals: {args.min_signals} | Target win rate: {args.target_win_rate:.0%}")
-        print("=" * 72)
-
-        for index, (edge, confidence, correlation, wf_only) in enumerate(
-            itertools.product(edge_grid, confidence_grid, correlation_grid, mode_grid),
-            start=1,
-        ):
-            settings = base.with_overrides(
-                edge_buy_threshold=edge,
-                edge_sell_threshold=-edge,
-                min_signal_confidence=confidence,
+        _, summary, _ = run_backtest(
+            edges,
+            history,
+            centrality,
+            domain_by_parent,
+            settings,
+        )
+        results.append(
+            GridResult(
+                edge_threshold=edge,
+                min_confidence=confidence,
                 correlation_threshold=correlation,
                 walk_forward_only=wf_only,
+                signals=summary.actionable_signals,
+                wins=summary.directional_wins,
+                win_rate=summary.directional_win_rate,
             )
-            _, summary, _ = run_backtest(
-                conn,
-                history,
-                centrality,
-                domain_by_parent,
-                settings,
-            )
-            results.append(
-                GridResult(
-                    edge_threshold=edge,
-                    min_confidence=confidence,
-                    correlation_threshold=correlation,
-                    walk_forward_only=wf_only,
-                    signals=summary.actionable_signals,
-                    wins=summary.directional_wins,
-                    win_rate=summary.directional_win_rate,
-                )
-            )
-            if index % 10 == 0 or index == total:
-                print(f"  evaluated {index}/{total}...")
+        )
+        if index % 10 == 0 or index == total:
+            print(f"  evaluated {index}/{total}...")
 
     qualifying = [r for r in results if r.signals >= args.min_signals]
     above_target = [r for r in qualifying if r.win_rate >= args.target_win_rate]

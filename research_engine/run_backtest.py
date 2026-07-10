@@ -71,6 +71,25 @@ def _load_context(conn):
     return edges, history, domain_by_parent, centrality
 
 
+def _print_run_header(
+    edges,
+    domain_by_parent,
+    history,
+    settings: BacktestSettings,
+) -> None:
+    print("Backtest Engine")
+    print("=" * 40)
+    print(f"Relationships:       {len(edges)}")
+    print(f"Markets in scope:    {len(domain_by_parent)}")
+    print(f"History rows:        {len(history)}")
+    print(f"Horizon:             {settings.horizon_minutes} minutes")
+    print(f"Min train window:    {settings.min_train_snapshots} snapshots")
+    print(f"Walk-forward only:   {settings.walk_forward_only}")
+    print(f"Win requires PnL>0:  {settings.win_requires_pnl}")
+    print(f"Domains:             {settings.domains or 'all'}")
+    print()
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run walk-forward backtest")
     parser.add_argument(
@@ -104,123 +123,113 @@ def main() -> None:
 
     with connect() as conn:
         context = _load_context(conn)
-        if context is None:
-            print("No discovered relationships in database. Run `uv run run_graph.py` first.")
-            return
+    if context is None:
+        print("No discovered relationships in database. Run `uv run run_graph.py` first.")
+        return
 
-        edges, history, domain_by_parent, centrality = context
+    edges, history, domain_by_parent, centrality = context
+    _print_run_header(edges, domain_by_parent, history, settings)
 
-        print("Backtest Engine")
-        print("=" * 40)
-        print(f"Relationships:       {len(edges)}")
-        print(f"Markets in scope:    {len(domain_by_parent)}")
-        print(f"History rows:        {len(history)}")
-        print(f"Horizon:             {settings.horizon_minutes} minutes")
-        print(f"Min train window:    {settings.min_train_snapshots} snapshots")
-        print(f"Walk-forward only:   {settings.walk_forward_only}")
-        print(f"Win requires PnL>0:  {settings.win_requires_pnl}")
-        print(f"Domains:             {settings.domains or 'all'}")
-        print()
+    if args.compare_modes:
+        wf_settings = settings.with_overrides(walk_forward_only=True)
+        full_settings = settings.with_overrides(walk_forward_only=False)
 
-        if args.compare_modes:
-            wf_settings = settings.with_overrides(walk_forward_only=True)
-            full_settings = settings.with_overrides(walk_forward_only=False)
-
-            _, wf_summary, wf_diag = run_backtest(
-                conn, history, centrality, domain_by_parent, wf_settings
-            )
-            _, full_summary, full_diag = run_backtest(
-                conn, history, centrality, domain_by_parent, full_settings
-            )
-
-            print("Mode comparison (not saved)")
-            print("-" * 40)
-            _print_summary("Walk-forward only", wf_summary)
-            print()
-            _print_summary("Walk-forward + replay", full_summary)
-            print()
-            _print_summary("Replay component only", full_diag.replay_summary)
-            return
-
-        outcomes, summary, diagnostics = run_backtest(
-            conn,
-            history,
-            centrality,
-            domain_by_parent,
-            settings,
+        _, wf_summary, wf_diag = run_backtest(
+            edges, history, centrality, domain_by_parent, wf_settings
+        )
+        _, full_summary, full_diag = run_backtest(
+            edges, history, centrality, domain_by_parent, full_settings
         )
 
-        config = settings_to_dict(settings)
-        config["diagnostics"] = {
-            "pairs_evaluated": diagnostics.pairs_evaluated,
-            "pairs_with_history": diagnostics.pairs_with_history,
-            "pairs_walk_forward": diagnostics.pairs_walk_forward,
-            "pairs_replay": diagnostics.pairs_replay,
-            "walk_forward_signals": diagnostics.walk_forward_signals,
-            "replay_signals": diagnostics.replay_signals,
-        }
+        print("Mode comparison (not saved)")
+        print("-" * 40)
+        _print_summary("Walk-forward only", wf_summary)
+        print()
+        _print_summary("Walk-forward + replay", full_summary)
+        print()
+        _print_summary("Replay component only", full_diag.replay_summary)
+        return
 
+    outcomes, summary, diagnostics = run_backtest(
+        edges,
+        history,
+        centrality,
+        domain_by_parent,
+        settings,
+    )
+
+    config = settings_to_dict(settings)
+    config["diagnostics"] = {
+        "pairs_evaluated": diagnostics.pairs_evaluated,
+        "pairs_with_history": diagnostics.pairs_with_history,
+        "pairs_walk_forward": diagnostics.pairs_walk_forward,
+        "pairs_replay": diagnostics.pairs_replay,
+        "walk_forward_signals": diagnostics.walk_forward_signals,
+        "replay_signals": diagnostics.replay_signals,
+    }
+
+    with connect() as conn:
         run_id = save_backtest_run(conn, outcomes, summary, config)
         conn.commit()
 
-        print("Diagnostics")
+    print("Diagnostics")
+    print("-" * 40)
+    print(f"Pairs evaluated:         {diagnostics.pairs_evaluated}")
+    print(f"Pairs with history:      {diagnostics.pairs_with_history}")
+    print(f"Pairs walk-forward:      {diagnostics.pairs_walk_forward}")
+    print(f"Pairs replay fallback:   {diagnostics.pairs_replay}")
+    print(f"Walk-forward signals:    {diagnostics.walk_forward_signals}")
+    print(f"Replay signals:          {diagnostics.replay_signals}")
+    print()
+    _print_summary("Walk-forward component", diagnostics.walk_forward_summary)
+    print()
+    _print_summary("Replay component", diagnostics.replay_summary)
+    print()
+
+    if diagnostics.domain_summaries:
+        print("Win rate by domain")
         print("-" * 40)
-        print(f"Pairs evaluated:         {diagnostics.pairs_evaluated}")
-        print(f"Pairs with history:      {diagnostics.pairs_with_history}")
-        print(f"Pairs walk-forward:      {diagnostics.pairs_walk_forward}")
-        print(f"Pairs replay fallback:   {diagnostics.pairs_replay}")
-        print(f"Walk-forward signals:    {diagnostics.walk_forward_signals}")
-        print(f"Replay signals:          {diagnostics.replay_signals}")
-        print()
-        _print_summary("Walk-forward component", diagnostics.walk_forward_summary)
-        print()
-        _print_summary("Replay component", diagnostics.replay_summary)
-        print()
-
-        if diagnostics.domain_summaries:
-            print("Win rate by domain")
-            print("-" * 40)
-            for domain, domain_summary in diagnostics.domain_summaries.items():
-                if domain_summary.actionable_signals == 0:
-                    continue
-                print(
-                    f"  {domain}: {domain_summary.directional_win_rate:.1%} "
-                    f"({domain_summary.directional_wins}/"
-                    f"{domain_summary.actionable_signals})"
-                )
-            print()
-
-        print("Results (saved)")
-        print("-" * 40)
-        print(f"Run id:                  {run_id}")
-        _print_summary("Combined", summary)
-        print(f"Mean |edge| at signal:   {summary.mean_edge_at_signal:.4f}")
-        print(f"Mean |edge| after:       {summary.mean_edge_after:.4f}")
-        if summary.mean_minutes_to_reprice is not None:
+        for domain, domain_summary in diagnostics.domain_summaries.items():
+            if domain_summary.actionable_signals == 0:
+                continue
             print(
-                f"Mean time to reprice:    "
-                f"{summary.mean_minutes_to_reprice:.1f} min"
+                f"  {domain}: {domain_summary.directional_win_rate:.1%} "
+                f"({domain_summary.directional_wins}/"
+                f"{domain_summary.actionable_signals})"
             )
-
-        if summary.actionable_signals == 0:
-            print()
-            print(
-                "No actionable signals. Try:\n"
-                "  uv run run_optimize_backtest.py\n"
-                "  uv run run_backfill_history.py --relationships"
-            )
-            return
-
         print()
-        print("Sample outcomes:")
-        for outcome in outcomes[:5]:
-            print(
-                f"  {outcome.signal_time} | {outcome.evaluation_mode} | "
-                f"{outcome.parent_market_id} -> {outcome.child_market_id} | "
-                f"{outcome.signal} | edge {outcome.edge_at_t:.3f} -> "
-                f"{outcome.edge_at_t_plus:.3f} | win={outcome.directional_win} "
-                f"pnl={outcome.simple_pnl:.3f}"
-            )
+
+    print("Results (saved)")
+    print("-" * 40)
+    print(f"Run id:                  {run_id}")
+    _print_summary("Combined", summary)
+    print(f"Mean |edge| at signal:   {summary.mean_edge_at_signal:.4f}")
+    print(f"Mean |edge| after:       {summary.mean_edge_after:.4f}")
+    if summary.mean_minutes_to_reprice is not None:
+        print(
+            f"Mean time to reprice:    "
+            f"{summary.mean_minutes_to_reprice:.1f} min"
+        )
+
+    if summary.actionable_signals == 0:
+        print()
+        print(
+            "No actionable signals. Try:\n"
+            "  uv run run_optimize_backtest.py\n"
+            "  uv run run_backfill_history.py --relationships"
+        )
+        return
+
+    print()
+    print("Sample outcomes:")
+    for outcome in outcomes[:5]:
+        print(
+            f"  {outcome.signal_time} | {outcome.evaluation_mode} | "
+            f"{outcome.parent_market_id} -> {outcome.child_market_id} | "
+            f"{outcome.signal} | edge {outcome.edge_at_t:.3f} -> "
+            f"{outcome.edge_at_t_plus:.3f} | win={outcome.directional_win} "
+            f"pnl={outcome.simple_pnl:.3f}"
+        )
 
 
 if __name__ == "__main__":
