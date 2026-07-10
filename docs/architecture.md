@@ -34,7 +34,7 @@ Polymarket Gamma API
 | `rust_engine` | Rust | API ingestion, DB writes, IPv4 HTTP client, arbitrage execution scaffold |
 | `research_engine` | Python | Correlation, graph stats, backtests, notebooks (planned) |
 | `sql/` | SQL | Schema source of truth shared by Rust and Python |
-| `dashboard/` | TBD | Visualization (deferred) |
+| `dashboard/` | Vercel (`vercel_app/`) | Live signals + backtest visualization |
 
 ## Database tables
 
@@ -63,5 +63,6 @@ Polymarket Gamma API
 1. ~~Wire arbitrage to live probabilities from scraped markets~~
 2. ~~Link graph labels to Polymarket market IDs~~
 3. ~~Bootstrap `research_engine` Python summary script~~
-4. Expand relationship templates / discovery via Python
-5. Dashboard and Docker when operational needs arise
+4. ~~Expand relationship templates / discovery via Python~~ (correlation discovery done)
+5. ~~Dashboard~~ — deployed via `vercel_app/` on Vercel
+6. Docker when operational needs arise

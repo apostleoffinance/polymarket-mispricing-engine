@@ -86,6 +86,16 @@ uv run run_backfill_history.py  # CLOB historical backfill (up to 3 years)
 
 Python discovers correlated market relationships and writes `market_relationships` + `arbitrage_signals`. Rust handles ingestion only.
 
+### 5. Dashboard (Vercel)
+
+Deploy the read-only research dashboard from [vercel_app/](vercel_app/):
+
+1. Import the repo on [Vercel](https://vercel.com/new) with **Root Directory** = `vercel_app`
+2. Set `DATABASE_URL` to your Neon connection string (same as GitHub Actions)
+3. Open the deployed URL — live signals, backtest win rates, and research health alerts
+
+See [vercel_app/README.md](vercel_app/README.md) for local dev and GitHub Actions deploy.
+
 ---
 
 ## Current status
@@ -100,7 +110,9 @@ Python discovers correlated market relationships and writes `market_relationship
 | Signal dedup | Done |
 | Python research summary (`uv run summary.py`) | Done |
 | Relationship discovery via Python | Done (correlation) |
-| Dashboard / Docker | Deferred |
+| Walk-forward backtest + CI pipeline | Done |
+| Dashboard (Vercel) | Done — see [vercel_app/](vercel_app/) |
+| Docker | Deferred |
 
 See [docs/architecture.md](docs/architecture.md) for details.
 

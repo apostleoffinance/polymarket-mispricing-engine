@@ -167,6 +167,21 @@
     .HOLD { color: var(--muted); background: rgba(255,255,255,0.08); }
     .hidden { display: none; }
     .empty { color: var(--muted); text-align: center; padding: 28px; }
+    .alerts { display: grid; gap: 10px; margin-bottom: 18px; }
+    .alert {
+      padding: 12px 14px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: rgba(245, 158, 11, 0.08);
+      color: #f8d48b;
+      font-size: 0.84rem;
+      line-height: 1.45;
+    }
+    .alert.ok {
+      background: rgba(39, 174, 96, 0.08);
+      color: #9be7b8;
+    }
+    .alert strong { color: var(--text); }
     @media (max-width: 720px) { .hero { grid-template-columns: 1fr; } header { flex-direction: column; align-items: flex-start; } }
   </style>
 </head>
@@ -188,6 +203,7 @@
     </header>
 
     <div class="filters" id="filters"></div>
+    <div class="alerts" id="alerts"></div>
     <div class="grid" id="domainCards"></div>
     <div class="grid" id="overview"></div>
 
@@ -275,6 +291,38 @@
           ${domain === "all" ? "All markets" : domain}
         </button>
       `).join("");
+    }
+
+    function renderAlerts(overview, latest) {
+      const alerts = [];
+      const snapshots = Number(overview.snapshots || 0);
+      const relationships = Number(overview.relationships || 0);
+      const actionable = Number(latest?.actionable_signals || 0);
+      const winRate = Number(latest?.directional_win_rate || 0);
+      const startedAt = latest?.started_at ? new Date(latest.started_at) : null;
+      const ageHours = startedAt ? (Date.now() - startedAt.getTime()) / 3_600_000 : null;
+
+      if (!latest) {
+        alerts.push(`<div class="alert">No backtest run yet. The research pipeline writes results every 6 hours after <strong>run_backtest.py</strong> completes.</div>`);
+      } else if (actionable < 30) {
+        alerts.push(`<div class="alert">Low sample size for <strong>${selectedDomain === "all" ? "all markets" : selectedDomain}</strong> — win rate not statistically meaningful yet (n = ${actionable}, need ≥ 30).</div>`);
+      } else if (winRate >= 0.5) {
+        alerts.push(`<div class="alert ok">Backtest baseline looks healthy: <strong>${(winRate * 100).toFixed(1)}%</strong> win rate on <strong>${actionable}</strong> actionable signals.</div>`);
+      } else {
+        alerts.push(`<div class="alert">Backtest win rate is <strong>${(winRate * 100).toFixed(1)}%</strong> on <strong>${actionable}</strong> signals — review thresholds before acting on live alerts.</div>`);
+      }
+
+      if (snapshots < 10_000) {
+        alerts.push(`<div class="alert">History depth is thin (<strong>${nfmt(snapshots)}</strong> snapshots). More ingestion + backfill improves relationship quality.</div>`);
+      }
+      if (relationships < 50) {
+        alerts.push(`<div class="alert">Few discovered relationships (<strong>${nfmt(relationships)}</strong>). Run the research pipeline to grow the graph.</div>`);
+      }
+      if (ageHours !== null && ageHours > 12) {
+        alerts.push(`<div class="alert">Latest backtest is <strong>${Math.round(ageHours)}h</strong> old. Check that the research pipeline is still running on schedule.</div>`);
+      }
+
+      document.getElementById("alerts").innerHTML = alerts.join("");
     }
 
     function renderDomainCards(stats) {
@@ -397,6 +445,7 @@
           api(`/api/backtest/results?limit=20${amp()}`),
         ]);
         renderFilters(domains.categories || DEFAULT_CATEGORIES);
+        renderAlerts(overview, latest);
         renderDomainCards(domains);
         renderOverview(overview);
         renderBacktest(latest);

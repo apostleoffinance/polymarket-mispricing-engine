@@ -10,6 +10,10 @@ research_engine/__pycache__/
 .env
 rust_engine/.env
 
+# Vercel dashboard
+vercel_app/node_modules/
+vercel_app/.vercel/
+
 # OS / IDE
 .DS_Store
 .idea/
