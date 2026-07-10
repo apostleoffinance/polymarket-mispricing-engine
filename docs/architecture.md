@@ -2,69 +2,82 @@
 
 ## Overview
 
-The mispricing engine is a monorepo with a clear split between **production infrastructure** (Rust) and **research** (Python), connected by PostgreSQL.
+The mispricing engine is a monorepo with a clear split between **ingestion** (Rust), **research** (Python), and **visualization** (Vercel), connected by PostgreSQL.
 
-```
+```text
 polymarket-mispricing-engine/
-├── rust_engine/       # Scrape, store, execute, risk (production paths)
-├── research_engine/   # Graph analysis, statistics, signal discovery
+├── rust_engine/       # Scrape + store markets / probabilities
+├── research_engine/   # Graph analysis, candidates, signals, backtests
+├── vercel_app/        # Read-only dashboard
 ├── sql/               # Shared database schema and migrations
 └── docs/              # Architecture and notes
 ```
 
 ## Data flow
 
-```
-Polymarket Gamma API
-        │
-        ▼
-  rust_engine (fetch + normalize)
-        │
-        ▼
-   PostgreSQL  ◄──── research_engine (read + analyze)
-        │
-        ▼
-  rust_engine (execute signals — future)
+```text
+Polymarket Gamma / CLOB APIs
+            │
+            ▼
+      rust_engine (ingest)
+            │
+            ▼
+       PostgreSQL
+            │
+     ┌──────┴──────┐
+     ▼             ▼
+research_engine   vercel_app
+ (analyze)        (dashboard)
+     │
+     ▼
+execute trades — future
 ```
 
 ## Component responsibilities
 
 | Component | Language | Responsibility |
 |-----------|----------|----------------|
-| `rust_engine` | Rust | API ingestion, DB writes, IPv4 HTTP client, arbitrage execution scaffold |
-| `research_engine` | Python | Correlation, graph stats, backtests, notebooks (planned) |
-| `sql/` | SQL | Schema source of truth shared by Rust and Python |
-| `dashboard/` | Vercel (`vercel_app/`) | Live signals + backtest visualization |
+| `rust_engine` | Rust | API ingestion, DB writes, IPv4 HTTP client |
+| `research_engine` | Python | Discovery, lead/lag, candidates, LLM hypotheses, signals, backtests |
+| `vercel_app` | JS | Live signals + backtest visualization |
+| `sql/` | SQL | Schema source of truth |
 
 ## Database tables
 
 | Table | Written by | Purpose |
 |-------|------------|---------|
 | `markets` | rust_engine | Market metadata |
-| `probability_history` | rust_engine | Time-series yes/no prices |
-| `market_relationships` | research_engine | Parent → related market edges (stats + lag/stability) |
-| `candidate_relationships` | research_engine | Proposed edges awaiting statistical validation |
+| `probability_history` | rust_engine (+ backfill) | Time-series yes/no prices |
+| `market_relationships` | research_engine | Promoted edges (stats + lag/stability) |
+| `candidate_relationships` | research_engine | Proposed edges awaiting validation |
+| `market_graph_metrics` | research_engine | Centrality metrics |
 | `arbitrage_signals` | research_engine | Expected vs observed edge + BUY/SELL/HOLD |
+| `backtest_runs` / `backtest_results` | research_engine | Walk-forward evaluation |
 
 ## Design principles
 
-1. **PostgreSQL is the contract** — Rust and Python communicate through the DB, not direct calls.
+1. **PostgreSQL is the contract** — services communicate through the DB, not direct calls.
 2. **Financial precision** — use `Decimal` / `NUMERIC`, never `f64` for money or probabilities.
 3. **Idempotent writes** — upserts, skip unchanged snapshots, deduplicated relationships.
-4. **Incremental growth** — add `dashboard/` and `docker-compose.yml` when multiple services need to run together.
+4. **LLM proposes, statistics promote** — agents never write the live graph directly.
+5. **Incremental growth** — alerts and execution come after research quality is proven.
 
 ## Current phase
 
 - Phase 1 (ingestion): done
 - Phase 2 (snapshots + graph): done
-- Phase 3 (mispricing): in progress — live probabilities, market ID resolution, signal dedup
+- Phase 3 (mispricing + enrichment): done for research path
+- Phase 4 (alerts): next
+- Phase 5 (execution): later
 
 ## Roadmap
 
-1. ~~Wire arbitrage to live probabilities from scraped markets~~
-2. ~~Link graph labels to Polymarket market IDs~~
-3. ~~Bootstrap `research_engine` Python summary script~~
-4. ~~Expand relationship templates / discovery via Python~~ (correlation discovery done)
-5. ~~Dashboard~~ — deployed via `vercel_app/` on Vercel
-6. Docker when operational needs arise
-7. Graph enrichment: lead/lag, stability, candidate→validate→promote (in progress)
+1. ~~Wire live probabilities from scraped markets~~
+2. ~~Python relationship discovery + signals~~
+3. ~~Walk-forward backtest + CI~~
+4. ~~Dashboard (`vercel_app/`)~~
+5. ~~Graph enrichment: lead/lag, stability, candidate→validate→promote~~
+6. ~~Optional LLM hypotheses with OpenAI → Gemini fallback~~
+7. Alerts (Discord/Slack) on high-confidence new signals
+8. Paper trading / execution (future)
+9. Docker when operational needs arise

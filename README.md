@@ -2,60 +2,68 @@
 
 A monorepo for detecting mispriced opportunities on Polymarket prediction markets.
 
-**Rust** handles ingestion (scrape, store). **Python** discovers graph edges and mispricing signals. **PostgreSQL** is the shared contract between them.
+**Rust** ingests markets and probability snapshots. **Python** discovers relationships, validates candidates, backtests, and emits signals. **PostgreSQL** (Neon in production) is the shared contract. A **Vercel dashboard** visualizes live signals and backtests.
+
+```text
+Polymarket API
+      │
+      ▼
+ rust_engine (hourly CI) ──► PostgreSQL ◄── research_engine (every 6h CI)
+                                  │
+                                  ▼
+                           vercel_app dashboard
+```
 
 ---
 
 ## Repository structure
 
-```
+```text
 polymarket-mispricing-engine/
-├── rust_engine/       # Rust: domain-scoped ingestion + snapshots
-├── research_engine/   # Python: graph engine + mispricing signals
-├── sql/               # Database schema and migrations
-├── docs/              # Architecture notes
-└── README.md
+├── rust_engine/         # Ingestion: Gamma API → markets + probability_history
+├── research_engine/     # Graph discovery, candidates, signals, backtests
+├── vercel_app/          # Read-only research dashboard (Vercel)
+├── sql/                 # Schema + migrations
+├── docs/                # Architecture notes
+└── .github/workflows/   # Rust ingestion + research pipeline
 ```
 
 ---
 
 ## Quick start
 
-### 1. PostgreSQL
+### 1. Database
+
+Local Postgres or Neon. Apply schema + migrations:
 
 ```bash
-brew services start postgresql@17
-psql -h localhost -p 5433 -d polymarket
+psql "$DATABASE_URL" -f sql/schema.sql
+# or apply migrations 001–011 in order (see list below)
 ```
 
-> Homebrew PG runs on **port 5433** (EnterpriseDB may use 5432). See [docs/architecture.md](docs/architecture.md).
-
-### 2. Database schema
-
-```bash
-psql -h localhost -p 5433 -d postgres -f sql/schema.sql
-psql -h localhost -p 5433 -d polymarket -f sql/migrations/001_dedupe_and_constraints.sql
-psql -h localhost -p 5433 -d polymarket -f sql/migrations/002_market_ids.sql
-psql -h localhost -p 5433 -d polymarket -f sql/migrations/003_cleanup_demo_signals.sql
-psql -h localhost -p 5433 -d polymarket -f sql/migrations/004_market_domain.sql
-psql -h localhost -p 5433 -d polymarket -f sql/migrations/005_relationship_strength.sql
-psql -h localhost -p 5433 -d polymarket -f sql/migrations/006_edge_statistics.sql
-psql -h localhost -p 5433 -d polymarket -f sql/migrations/007_market_graph_metrics.sql
-psql -h localhost -p 5433 -d polymarket -f sql/migrations/008_signal_confidence.sql
-psql -h localhost -p 5433 -d polymarket -f sql/migrations/009_backtest.sql
-psql -h localhost -p 5433 -d polymarket -f sql/migrations/010_clob_tokens_and_history_index.sql
-psql -h localhost -p 5433 -d polymarket -f sql/migrations/011_candidate_relationships_and_edge_dynamics.sql
-```
-
-### 3. Rust engine
+### 2. Environment
 
 ```bash
 cd rust_engine
 cp .env.example .env
-cargo run
 ```
 
-Each run fetches markets from five Polymarket event tags only:
+`rust_engine/.env` (also loaded by the research engine):
+
+```env
+DATABASE_URL=postgresql://...
+OPENAI_API_KEY=...      # optional — LLM relationship hypotheses
+GEMINI_API_KEY=...      # optional — fallback if OpenAI fails
+```
+
+### 3. Rust ingestion
+
+```bash
+cd rust_engine
+cargo run --release
+```
+
+Fetches active markets for five domains and snapshots yes/no probabilities:
 
 | Domain | API `tag_slug` |
 |--------|----------------|
@@ -65,37 +73,69 @@ Each run fetches markets from five Polymarket event tags only:
 | Macro | `macro` |
 | Geopolitics | `geopolitics` |
 
-Pipeline:
-
-1. Fetches active markets from those tagged events (paginated)
-2. Upserts `markets` (with `domain`) and snapshots `probability_history`
-
-Then run the Python graph engine (`uv run run_graph.py`) to discover relationships and signals.
-
-### 4. Research engine (Python)
+### 4. Research engine
 
 Requires [uv](https://docs.astral.sh/uv/):
 
 ```bash
 cd research_engine
 uv sync
-uv run summary.py          # read-only summary
-uv run run_graph.py        # discover edges + mispricing signals
-uv run run_backtest.py     # walk-forward backtest
-uv run run_backfill_history.py  # CLOB historical backfill (up to 3 years)
+uv run summary.py                 # DB summary
+uv run run_backfill_history.py --relationships --limit 50
+uv run run_graph.py               # discover + enrich + signals
+uv run run_backtest.py            # walk-forward backtest
+uv run run_optimize_backtest.py --quick
 ```
 
-Python discovers correlated market relationships and writes `market_relationships` + `arbitrage_signals`. Rust handles ingestion only.
+Details: [research_engine/README.md](research_engine/README.md).
 
-### 5. Dashboard (Vercel)
+### 5. Dashboard
 
-Deploy the read-only research dashboard from [vercel_app/](vercel_app/):
+Deploy [vercel_app/](vercel_app/) on Vercel with **Root Directory** = `vercel_app` and `DATABASE_URL` set to the same Neon URL. See [vercel_app/README.md](vercel_app/README.md).
 
-1. Import the repo on [Vercel](https://vercel.com/new) with **Root Directory** = `vercel_app`
-2. Set `DATABASE_URL` to your Neon connection string (same as GitHub Actions)
-3. Open the deployed URL — live signals, backtest win rates, and research health alerts
+---
 
-See [vercel_app/README.md](vercel_app/README.md) for local dev and GitHub Actions deploy.
+## How the research graph works
+
+```text
+probability_history
+        │
+        ▼
+ within-domain discovery (correlation, OLS, lead/lag, stability)
+        │
+        ▼
+ candidate proposals (token overlap + optional LLM)
+        │
+        ▼
+ statistical validation ──► promote or reject
+        │
+        ▼
+ NetworkX graph + centrality → mispricing signals + explanations
+        │
+        ▼
+ walk-forward backtest → dashboard
+```
+
+**Design rule:** LLMs may propose relationships; only statistics promote them into the live graph.
+
+LLM fallback order (configurable): **OpenAI → Gemini**. If both keys are missing, token-overlap candidates still run.
+
+---
+
+## CI / GitHub Actions
+
+| Workflow | Schedule | Role |
+|----------|----------|------|
+| [Rust Ingestion](.github/workflows/rust_ingestion.yml) | Hourly | `cargo run --release` |
+| [Research Pipeline](.github/workflows/research_pipeline.yml) | Every 6h | migrate → backfill → graph → backtest |
+
+**GitHub secrets**
+
+| Secret | Used by |
+|--------|---------|
+| `DATABASE_URL` | Both pipelines + (separately) Vercel |
+| `OPENAI_API_KEY` | Research graph LLM hypotheses |
+| `GEMINI_API_KEY` | Research graph LLM fallback |
 
 ---
 
@@ -103,19 +143,19 @@ See [vercel_app/README.md](vercel_app/README.md) for local dev and GitHub Action
 
 | Phase | Status |
 |-------|--------|
-| Data ingestion (markets API → Postgres) | Done |
-| Probability snapshots + relationship graph | Done |
-| Live arbitrage signals (BUY/SELL/HOLD) | Done (Python `run_graph.py`) |
-| Graph engine (NetworkX + correlation) | Done |
-| Market ID resolution (`resolver.rs`) | Done (Rust, legacy templates) |
-| Signal dedup | Done |
-| Python research summary (`uv run summary.py`) | Done |
-| Relationship discovery via Python | Done (correlation) |
-| Walk-forward backtest + CI pipeline | Done |
-| Dashboard (Vercel) | Done — see [vercel_app/](vercel_app/) |
+| Data ingestion (Gamma → Postgres) | Done |
+| Probability history + CLOB backfill | Done |
+| Graph discovery (correlation / OLS) | Done |
+| Lead/lag + edge stability | Done |
+| Candidate → validate → promote | Done |
+| Optional LLM hypotheses (OpenAI → Gemini) | Done |
+| Grounded signal explanations | Done |
+| Walk-forward backtest + optimize | Done |
+| Research + ingestion CI | Done |
+| Dashboard (Vercel) | Done |
+| Alerts (Discord/Slack) | Next |
+| Automated trading | Later |
 | Docker | Deferred |
-
-See [docs/architecture.md](docs/architecture.md) for details.
 
 ---
 
@@ -123,38 +163,45 @@ See [docs/architecture.md](docs/architecture.md) for details.
 
 | Folder | Role |
 |--------|------|
-| [rust_engine/](rust_engine/) | Fetch markets, store metadata & probabilities, resolve graph edges, compute live signals |
-| [research_engine/](research_engine/) | Read stored data, print summaries; future pandas/NetworkX analysis |
-| [sql/](sql/) | Shared schema and migrations for all services |
+| [rust_engine/](rust_engine/) | Fetch markets, store metadata & probability snapshots |
+| [research_engine/](research_engine/) | Graph enrichment, signals, backtests, API |
+| [vercel_app/](vercel_app/) | Live signals + backtest dashboard |
+| [sql/](sql/) | Shared schema and migrations |
 
-### Rust pipeline modules
+### Signal logic (Python)
 
-| Module | Role |
-|--------|------|
-| `http_client.rs` | IPv4 HTTP client + retries |
-| `parser.rs` / `normalizer.rs` | Parse and normalize outcome prices |
-| `relationships.rs` | Relationship templates (keywords) |
-| `resolver.rs` | Match templates to Polymarket market IDs |
-| `arbitrage.rs` | Edge calculation → BUY / SELL / HOLD |
-| `database.rs` | Upserts, snapshot dedup, signal dedup |
-
-### Arbitrage logic
-
-- **Expected** child probability = parent yes price × 0.65
-- **Edge** = expected − observed child yes price
-- **Signal**: BUY if edge > 0.10, SELL if edge < −0.10, else HOLD
+- **Expected** child probability = `α + β · parent` (from discovered OLS edge)
+- **Edge** = expected − observed child yes probability
+- **Signal**: BUY / SELL / HOLD from edge + confidence thresholds in `research_engine/config.py`
 
 ---
 
-## Configuration
+## Migrations
 
-`rust_engine/.env`:
-
-```env
-DATABASE_URL=postgres://localhost:5433/polymarket
+```bash
+psql "$DATABASE_URL" -f sql/migrations/001_dedupe_and_constraints.sql
+psql "$DATABASE_URL" -f sql/migrations/002_market_ids.sql
+psql "$DATABASE_URL" -f sql/migrations/003_cleanup_demo_signals.sql
+psql "$DATABASE_URL" -f sql/migrations/004_market_domain.sql
+psql "$DATABASE_URL" -f sql/migrations/005_relationship_strength.sql
+psql "$DATABASE_URL" -f sql/migrations/006_edge_statistics.sql
+psql "$DATABASE_URL" -f sql/migrations/007_market_graph_metrics.sql
+psql "$DATABASE_URL" -f sql/migrations/008_signal_confidence.sql
+psql "$DATABASE_URL" -f sql/migrations/009_backtest.sql
+psql "$DATABASE_URL" -f sql/migrations/010_clob_tokens_and_history_index.sql
+psql "$DATABASE_URL" -f sql/migrations/011_candidate_relationships_and_edge_dynamics.sql
 ```
 
-`research_engine` loads the same URL from `rust_engine/.env`.
+Migration `011` is also applied automatically by the research pipeline CI job.
+
+---
+
+## Docs
+
+- [docs/architecture.md](docs/architecture.md) — system design
+- [research_engine/README.md](research_engine/README.md) — graph / backtest details
+- [rust_engine/README.md](rust_engine/README.md) — ingestion
+- [vercel_app/README.md](vercel_app/README.md) — dashboard deploy
 
 ---
 
