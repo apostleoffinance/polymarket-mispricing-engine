@@ -77,6 +77,7 @@ def build_signals(
             "lag_minutes": edge.lag_minutes,
             "lead_correlation": round(edge.lead_correlation, 4),
             "stability_score": round(edge.stability_score, 4),
+            "discovery_source": edge.discovery_source,
         }
 
         signals.append(

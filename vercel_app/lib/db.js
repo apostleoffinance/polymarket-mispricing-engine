@@ -92,6 +92,8 @@ export function enrichSignalRow(row) {
     n_observations:
       reason.n_observations != null ? Number(reason.n_observations) : null,
     relationship_type: reason.relationship_type || row.relationship_type || null,
+    discovery_source:
+      reason.discovery_source || row.discovery_source || null,
   };
 }
 

@@ -214,7 +214,7 @@
         <div class="logo">P</div>
         <div>
           <h1>Polymarket Research</h1>
-          <div class="sub">Signals, explanations, candidates, and backtests</div>
+          <div class="sub">Signals, explanations, candidates, and backtests · <span id="buildTag">checking deploy…</span></div>
         </div>
       </div>
       <div class="status">
@@ -226,6 +226,13 @@
 
     <div class="filters" id="filters"></div>
     <div class="alerts" id="alerts"></div>
+    <section class="section">
+      <div class="section-head">
+        <h2>Graph Enrichment</h2>
+        <span>candidates · lag/stability · agent vs scan</span>
+      </div>
+      <div class="grid" id="enrichment"></div>
+    </section>
     <div class="grid" id="domainCards"></div>
     <div class="grid" id="overview"></div>
 
@@ -240,18 +247,20 @@
     <section class="section">
       <div class="tabs">
         <button class="active" id="tabSignals" onclick="setTab('signals')">Live Signals</button>
-        <button id="tabCandidates" onclick="setTab('candidates')">Candidates</button>
+        <button id="tabCandidates" onclick="setTab('candidates')">Candidates <span id="candidateCount" class="chip">0</span></button>
         <button id="tabResults" onclick="setTab('results')">Backtest Results</button>
+        <button id="tabSources" onclick="setTab('sources')">Source Win Rates</button>
       </div>
 
       <div class="panel" id="signalsPanel">
         <table>
           <thead>
             <tr>
-              <th>Parent</th>
+              <th>Parent / Why</th>
               <th>Child</th>
               <th>Edge</th>
               <th>Dynamics</th>
+              <th>Source</th>
               <th>Conf</th>
               <th>Signal</th>
             </tr>
@@ -282,6 +291,15 @@
             <tr><th>Parent</th><th>Child</th><th>Signal</th><th>Edge T</th><th>Edge T+Δ</th><th>Outcome</th><th>PnL</th></tr>
           </thead>
           <tbody id="results"></tbody>
+        </table>
+      </div>
+
+      <div class="panel hidden" id="sourcesPanel">
+        <table>
+          <thead>
+            <tr><th>Discovery source</th><th>Signals</th><th>Wins</th><th>Win rate</th></tr>
+          </thead>
+          <tbody id="sources"></tbody>
         </table>
       </div>
     </section>
@@ -322,9 +340,11 @@
       document.getElementById("tabSignals").classList.toggle("active", tab === "signals");
       document.getElementById("tabCandidates").classList.toggle("active", tab === "candidates");
       document.getElementById("tabResults").classList.toggle("active", tab === "results");
+      document.getElementById("tabSources").classList.toggle("active", tab === "sources");
       document.getElementById("signalsPanel").classList.toggle("hidden", tab !== "signals");
       document.getElementById("candidatesPanel").classList.toggle("hidden", tab !== "candidates");
       document.getElementById("resultsPanel").classList.toggle("hidden", tab !== "results");
+      document.getElementById("sourcesPanel").classList.toggle("hidden", tab !== "sources");
     }
     function market(question, id, domain) {
       return `
@@ -353,6 +373,35 @@
           ${domain === "all" ? "All markets" : domain}
         </button>
       `).join("");
+    }
+
+    function renderEnrichment(overview, latest) {
+      const candidates = overview.candidates || {};
+      const dynamics = overview.edge_dynamics || {};
+      const sources = latest?.source_summaries || {};
+      const sourceCount = Object.keys(sources).length;
+      const rows = [
+        ["Candidates total", candidates.total || 0],
+        ["Promoted", candidates.promoted || 0, "green"],
+        ["Proposed", candidates.proposed || 0, "amber"],
+        ["Rejected", candidates.rejected || 0, "red"],
+        ["Edges with lag", dynamics.with_lag || 0, "blue"],
+        ["Mean stability", dynamics.mean_stability],
+        ["Agent pairs (backtest)", latest?.pairs_agent_sourced || 0],
+        ["Source groups", sourceCount],
+      ];
+      document.getElementById("enrichment").innerHTML = rows.map(([label, value, color]) => `
+        <div class="card">
+          <div class="label">${label}</div>
+          <div class="value ${color || ""}">${
+            label === "Mean stability"
+              ? (value == null ? "—" : fmt(value, 2))
+              : nfmt(value)
+          }</div>
+        </div>
+      `).join("");
+      const countEl = document.getElementById("candidateCount");
+      if (countEl) countEl.textContent = String(candidates.total || 0);
     }
 
     function renderAlerts(overview, latest) {
@@ -482,6 +531,8 @@
             <div class="metric"><div class="label">Wins</div><div class="value">${nfmt(data.directional_wins)}</div></div>
             <div class="metric"><div class="label">Edge Closed</div><div class="value ${cls(data.edge_closed_rate)}">${pct(data.edge_closed_rate)}</div></div>
             <div class="metric"><div class="label">Avg Reprice</div><div class="value">${data.mean_minutes_to_reprice == null ? "—" : Math.round(data.mean_minutes_to_reprice) + "m"}</div></div>
+            <div class="metric"><div class="label">Lag horizon</div><div class="value">${data.use_lag_horizon ? "on" : "off"}</div></div>
+            <div class="metric"><div class="label">Agent signals</div><div class="value blue">${nfmt(data.agent_signals)}</div></div>
           </div>
         </div>
         <div class="ring" style="--pct:${Math.round(rate * 100)}%">
@@ -491,13 +542,14 @@
     }
 
     function renderSignals(rows) {
+      const enriched = rows.filter((row) => row.explanation || row.lag_minutes || row.stability_score).length;
       document.getElementById("signals").innerHTML = rows.length ? rows.map((row) => {
         const lag = lagLabel(row.lag_minutes);
         return `
           <tr>
             <td>
               ${market(row.parent_question, row.parent_id, row.domain)}
-              ${row.explanation ? `<div class="explain">${esc(row.explanation)}</div>` : ""}
+              <div class="explain">${esc(row.explanation || "No explanation yet — run research pipeline after enrichment deploy.")}</div>
             </td>
             <td>${market(row.child_question, row.child_id)}</td>
             <td>
@@ -509,16 +561,31 @@
             </td>
             <td>
               <div class="meta-row">
-                ${lag ? `<span class="chip">${esc(lag)}</span>` : `<span class="chip">no lag</span>`}
-                <span class="chip">stab ${fmt(row.stability_score, 2)}</span>
+                ${lag ? `<span class="chip">${esc(lag)}</span>` : `<span class="chip">lag pending</span>`}
+                <span class="chip">stab ${row.stability_score == null ? "—" : fmt(row.stability_score, 2)}</span>
                 ${row.lead_correlation != null ? `<span class="chip">lead r ${fmt(row.lead_correlation, 2)}</span>` : ""}
               </div>
             </td>
+            <td><span class="chip">${esc(row.discovery_source || "unknown")}</span></td>
             <td>${fmt(row.confidence, 3)}</td>
             <td><span class="badge ${row.signal || "HOLD"}">${row.signal || "HOLD"}</span></td>
           </tr>
         `;
-      }).join("") : `<tr><td colspan="6" class="empty">No live signals.</td></tr>`;
+      }).join("") + (enriched === 0 ? `<tr><td colspan="7" class="empty">UI is on enrichment layout, but DB rows are still pre-enrichment. Trigger Research Pipeline, then refresh.</td></tr>` : "")
+      : `<tr><td colspan="7" class="empty">No live signals.</td></tr>`;
+    }
+
+    function renderSources(latest) {
+      const sources = latest?.source_summaries || {};
+      const entries = Object.entries(sources);
+      document.getElementById("sources").innerHTML = entries.length ? entries.map(([source, summary]) => `
+        <tr>
+          <td><span class="chip">${esc(source)}</span></td>
+          <td>${nfmt(summary.actionable_signals)}</td>
+          <td>${nfmt(summary.directional_wins)}</td>
+          <td class="${cls(summary.directional_win_rate)}">${pct(summary.directional_win_rate)}</td>
+        </tr>
+      `).join("") : `<tr><td colspan="4" class="empty">No source breakdown yet. Appears after a lag-aware backtest run saves diagnostics into config_json.</td></tr>`;
     }
 
     function renderCandidates(rows) {
@@ -560,10 +627,12 @@
     async function load() {
       const dot = document.getElementById("dot");
       const status = document.getElementById("status");
+      const buildTag = document.getElementById("buildTag");
       dot.classList.remove("error");
       status.textContent = "Refreshing";
       try {
-        const [overview, domains, latest, signals, candidates, results] = await Promise.all([
+        const [health, overview, domains, latest, signals, candidates, results] = await Promise.all([
+          api("/api/health"),
           api(`/api/overview${q()}`),
           api("/api/domains"),
           api(`/api/backtest/latest${q()}`),
@@ -571,7 +640,11 @@
           api(`/api/candidates?limit=30${amp()}`),
           api(`/api/backtest/results?limit=20${amp()}`),
         ]);
+        if (buildTag) {
+          buildTag.textContent = `API v${health.version || "?"} · ${(health.features || []).includes("enrichment_panel") ? "enrichment live" : "old deploy"}`;
+        }
         renderFilters(domains.categories || DEFAULT_CATEGORIES);
+        renderEnrichment(overview, latest);
         renderAlerts(overview, latest);
         renderDomainCards(domains);
         renderOverview(overview);
@@ -579,12 +652,14 @@
         renderSignals(signals);
         renderCandidates(candidates);
         renderResults(results);
+        renderSources(latest);
         setTab(activeTab);
         status.textContent = `Live · ${new Date().toLocaleTimeString()}`;
       } catch (error) {
         console.error(error);
         dot.classList.add("error");
         status.textContent = "Error";
+        if (buildTag) buildTag.textContent = "deploy/API error";
         document.getElementById("backtestHero").innerHTML = `<div class="empty red">Failed to load: ${esc(error.message)}</div>`;
       }
     }

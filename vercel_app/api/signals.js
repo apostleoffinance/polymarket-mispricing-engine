@@ -29,12 +29,13 @@ export default async function handler(req, res) {
             r.lag_minutes,
             r.lead_correlation,
             r.stability_score,
-            r.relationship_type
+            r.relationship_type,
+            r.discovery_source
           FROM arbitrage_signals s
           LEFT JOIN markets parent_m ON parent_m.id = s.parent_market
           LEFT JOIN markets child_m ON child_m.id = s.related_market
           LEFT JOIN LATERAL (
-            SELECT lag_minutes, lead_correlation, stability_score, relationship_type
+            SELECT lag_minutes, lead_correlation, stability_score, relationship_type, discovery_source
             FROM market_relationships
             WHERE parent_market_id = s.parent_market
               AND related_market_id = s.related_market
@@ -64,12 +65,13 @@ export default async function handler(req, res) {
             r.lag_minutes,
             r.lead_correlation,
             r.stability_score,
-            r.relationship_type
+            r.relationship_type,
+            r.discovery_source
           FROM arbitrage_signals s
           LEFT JOIN markets parent_m ON parent_m.id = s.parent_market
           LEFT JOIN markets child_m ON child_m.id = s.related_market
           LEFT JOIN LATERAL (
-            SELECT lag_minutes, lead_correlation, stability_score, relationship_type
+            SELECT lag_minutes, lead_correlation, stability_score, relationship_type, discovery_source
             FROM market_relationships
             WHERE parent_market_id = s.parent_market
               AND related_market_id = s.related_market

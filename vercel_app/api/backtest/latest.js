@@ -1,6 +1,18 @@
 import { normalizeDomain, sendError, sql, toIso, toNumber } from "../../lib/db.js";
 
+function parseConfig(value) {
+  if (!value) return {};
+  if (typeof value === "object") return value;
+  try {
+    return JSON.parse(String(value));
+  } catch {
+    return {};
+  }
+}
+
 function serializeRun(row, domain = null) {
+  const config = parseConfig(row.config_json);
+  const diagnostics = config.diagnostics || {};
   return {
     id: row.id,
     started_at: toIso(row.started_at),
@@ -17,6 +29,12 @@ function serializeRun(row, domain = null) {
         ? null
         : Number(row.mean_minutes_to_reprice),
     domain,
+    use_lag_horizon: Boolean(config.use_lag_horizon),
+    min_stability: config.min_stability ?? null,
+    source_summaries: diagnostics.source_summaries || {},
+    pairs_agent_sourced: toNumber(diagnostics.pairs_agent_sourced),
+    agent_signals: toNumber(diagnostics.agent_signals),
+    pairs_skipped_stability: toNumber(diagnostics.pairs_skipped_stability),
   };
 }
 
@@ -28,6 +46,7 @@ export default async function handler(req, res) {
       SELECT
         id,
         started_at,
+        config_json,
         total_evaluations,
         actionable_signals,
         directional_wins,
