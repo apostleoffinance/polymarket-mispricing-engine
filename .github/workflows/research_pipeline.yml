@@ -28,6 +28,33 @@ jobs:
       - name: Install dependencies
         run: uv sync
 
+      - name: Apply graph enrichment migration
+        run: |
+          uv run python - <<'PY'
+          from pathlib import Path
+          from db import connect
+
+          raw = Path("../sql/migrations/011_candidate_relationships_and_edge_dynamics.sql").read_text()
+          statements = []
+          buf = []
+          for line in raw.splitlines():
+              stripped = line.strip()
+              if stripped.startswith("--") or not stripped:
+                  continue
+              buf.append(line)
+              if stripped.endswith(";"):
+                  statements.append("\n".join(buf))
+                  buf = []
+          with connect() as conn:
+              with conn.cursor() as cur:
+                  for stmt in statements:
+                      cur.execute(stmt)
+              conn.commit()
+          print(f"Migration 011 applied ({len(statements)} statements)")
+          PY
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
       - name: Backfill history
         run: |
           RELATIONSHIP_COUNT=$(uv run python - <<'PY'
@@ -63,6 +90,8 @@ jobs:
         run: uv run run_graph.py
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
 
       - name: Run backtest
         run: uv run run_backtest.py

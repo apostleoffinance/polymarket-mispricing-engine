@@ -28,6 +28,22 @@ class DiscoveredEdge:
     intercept: float
     conditional_slope: float
     n_observations: int
+    lag_minutes: int = 0
+    lead_correlation: float = 0.0
+    stability_score: float = 0.0
+
+
+@dataclass(frozen=True)
+class RelationshipCandidate:
+    parent_id: str
+    child_id: str
+    parent_question: str
+    child_question: str
+    parent_domain: str
+    child_domain: str
+    source: str
+    rationale: str
+    confidence: float = 0.0
 
 
 @dataclass(frozen=True)

@@ -74,6 +74,9 @@ def build_signals(
             "parent_centrality": round(parent_centrality, 4),
             "edge": round(mispricing_edge, 4),
             "signal": signal,
+            "lag_minutes": edge.lag_minutes,
+            "lead_correlation": round(edge.lead_correlation, 4),
+            "stability_score": round(edge.stability_score, 4),
         }
 
         signals.append(
@@ -108,9 +111,12 @@ def upsert_relationship(conn: PgConnection, edge: DiscoveredEdge) -> bool:
                 beta,
                 conditional_slope,
                 intercept,
-                n_observations
+                n_observations,
+                lag_minutes,
+                lead_correlation,
+                stability_score
             )
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (parent_market_id, related_market_id, relationship_type)
             DO UPDATE SET
                 parent_market = EXCLUDED.parent_market,
@@ -120,7 +126,10 @@ def upsert_relationship(conn: PgConnection, edge: DiscoveredEdge) -> bool:
                 beta = EXCLUDED.beta,
                 conditional_slope = EXCLUDED.conditional_slope,
                 intercept = EXCLUDED.intercept,
-                n_observations = EXCLUDED.n_observations
+                n_observations = EXCLUDED.n_observations,
+                lag_minutes = EXCLUDED.lag_minutes,
+                lead_correlation = EXCLUDED.lead_correlation,
+                stability_score = EXCLUDED.stability_score
             """,
             (
                 edge.parent_label,
@@ -134,6 +143,9 @@ def upsert_relationship(conn: PgConnection, edge: DiscoveredEdge) -> bool:
                 Decimal(str(edge.conditional_slope)),
                 Decimal(str(edge.intercept)),
                 edge.n_observations,
+                edge.lag_minutes,
+                Decimal(str(edge.lead_correlation)),
+                Decimal(str(edge.stability_score)),
             ),
         )
         return cur.rowcount > 0

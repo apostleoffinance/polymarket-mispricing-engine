@@ -42,8 +42,9 @@ Polymarket Gamma API
 |-------|------------|---------|
 | `markets` | rust_engine | Market metadata |
 | `probability_history` | rust_engine | Time-series yes/no prices |
-| `market_relationships` | rust_engine | Parent → related market edges |
-| `arbitrage_signals` | rust_engine | Expected vs observed edge + BUY/SELL/HOLD |
+| `market_relationships` | research_engine | Parent → related market edges (stats + lag/stability) |
+| `candidate_relationships` | research_engine | Proposed edges awaiting statistical validation |
+| `arbitrage_signals` | research_engine | Expected vs observed edge + BUY/SELL/HOLD |
 
 ## Design principles
 
@@ -66,3 +67,4 @@ Polymarket Gamma API
 4. ~~Expand relationship templates / discovery via Python~~ (correlation discovery done)
 5. ~~Dashboard~~ — deployed via `vercel_app/` on Vercel
 6. Docker when operational needs arise
+7. Graph enrichment: lead/lag, stability, candidate→validate→promote (in progress)

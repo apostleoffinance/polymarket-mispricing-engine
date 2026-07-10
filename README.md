@@ -44,6 +44,7 @@ psql -h localhost -p 5433 -d polymarket -f sql/migrations/007_market_graph_metri
 psql -h localhost -p 5433 -d polymarket -f sql/migrations/008_signal_confidence.sql
 psql -h localhost -p 5433 -d polymarket -f sql/migrations/009_backtest.sql
 psql -h localhost -p 5433 -d polymarket -f sql/migrations/010_clob_tokens_and_history_index.sql
+psql -h localhost -p 5433 -d polymarket -f sql/migrations/011_candidate_relationships_and_edge_dynamics.sql
 ```
 
 ### 3. Rust engine
