@@ -162,33 +162,11 @@
       text-transform: uppercase;
     }
     .badge { padding: 3px 9px; border-radius: 999px; font-size: 0.68rem; font-weight: 800; }
-    .BUY, .promoted { color: var(--green); background: rgba(39, 174, 96, 0.14); }
-    .SELL, .rejected { color: var(--red); background: rgba(231, 76, 60, 0.14); }
-    .HOLD, .proposed { color: var(--muted); background: rgba(255,255,255,0.08); }
-    .validated { color: var(--amber); background: rgba(245, 158, 11, 0.14); }
+    .BUY { color: var(--green); background: rgba(39, 174, 96, 0.14); }
+    .SELL { color: var(--red); background: rgba(231, 76, 60, 0.14); }
+    .HOLD { color: var(--muted); background: rgba(255,255,255,0.08); }
     .hidden { display: none; }
     .empty { color: var(--muted); text-align: center; padding: 28px; }
-    .explain {
-      margin-top: 8px;
-      color: var(--muted);
-      font-size: 0.75rem;
-      line-height: 1.45;
-      max-width: 420px;
-    }
-    .meta-row {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-      margin-top: 6px;
-    }
-    .chip {
-      display: inline-block;
-      padding: 2px 7px;
-      border-radius: 999px;
-      border: 1px solid var(--border);
-      color: var(--muted);
-      font-size: 0.65rem;
-    }
     .alerts { display: grid; gap: 10px; margin-bottom: 18px; }
     .alert {
       padding: 12px 14px;
@@ -214,7 +192,7 @@
         <div class="logo">P</div>
         <div>
           <h1>Polymarket Research</h1>
-          <div class="sub">Signals, explanations, candidates, and backtests · <span id="buildTag">checking deploy…</span></div>
+          <div class="sub">Live signals, category win rates, and latest backtest</div>
         </div>
       </div>
       <div class="status">
@@ -226,13 +204,6 @@
 
     <div class="filters" id="filters"></div>
     <div class="alerts" id="alerts"></div>
-    <section class="section">
-      <div class="section-head">
-        <h2>Graph Enrichment</h2>
-        <span>candidates · lag/stability · agent vs scan</span>
-      </div>
-      <div class="grid" id="enrichment"></div>
-    </section>
     <div class="grid" id="domainCards"></div>
     <div class="grid" id="overview"></div>
 
@@ -247,41 +218,15 @@
     <section class="section">
       <div class="tabs">
         <button class="active" id="tabSignals" onclick="setTab('signals')">Live Signals</button>
-        <button id="tabCandidates" onclick="setTab('candidates')">Candidates <span id="candidateCount" class="chip">0</span></button>
         <button id="tabResults" onclick="setTab('results')">Backtest Results</button>
-        <button id="tabSources" onclick="setTab('sources')">Source Win Rates</button>
       </div>
 
       <div class="panel" id="signalsPanel">
         <table>
           <thead>
-            <tr>
-              <th>Parent / Why</th>
-              <th>Child</th>
-              <th>Edge</th>
-              <th>Dynamics</th>
-              <th>Source</th>
-              <th>Conf</th>
-              <th>Signal</th>
-            </tr>
+            <tr><th>Parent</th><th>Child</th><th>Expected</th><th>Observed</th><th>Edge</th><th>Conf</th><th>Signal</th></tr>
           </thead>
           <tbody id="signals"></tbody>
-        </table>
-      </div>
-
-      <div class="panel hidden" id="candidatesPanel">
-        <table>
-          <thead>
-            <tr>
-              <th>Parent</th>
-              <th>Child</th>
-              <th>Source</th>
-              <th>Status</th>
-              <th>Stats</th>
-              <th>Notes</th>
-            </tr>
-          </thead>
-          <tbody id="candidates"></tbody>
         </table>
       </div>
 
@@ -293,32 +238,17 @@
           <tbody id="results"></tbody>
         </table>
       </div>
-
-      <div class="panel hidden" id="sourcesPanel">
-        <table>
-          <thead>
-            <tr><th>Discovery source</th><th>Signals</th><th>Wins</th><th>Win rate</th></tr>
-          </thead>
-          <tbody id="sources"></tbody>
-        </table>
-      </div>
     </section>
   </main>
 
   <script>
     const DEFAULT_CATEGORIES = ["politics", "football", "crypto", "macro", "geopolitics"];
     let selectedDomain = "all";
-    let activeTab = "signals";
 
-    const fmt = (n, d = 4) => n == null || Number.isNaN(Number(n)) ? "—" : Number(n).toFixed(d);
+    const fmt = (n, d = 4) => n == null ? "—" : Number(n).toFixed(d);
     const pct = (n) => `${(Number(n || 0) * 100).toFixed(1)}%`;
     const nfmt = (n) => Number(n || 0).toLocaleString();
     const cls = (rate) => rate >= 0.5 ? "green" : rate >= 0.25 ? "amber" : "red";
-    const esc = (s) => String(s ?? "")
-      .replaceAll("&", "&amp;")
-      .replaceAll("<", "&lt;")
-      .replaceAll(">", "&gt;")
-      .replaceAll('"', "&quot;");
     const api = async (url) => {
       const r = await fetch(url);
       if (!r.ok) throw new Error(`${url} ${r.status}`);
@@ -336,34 +266,22 @@
       load();
     }
     function setTab(tab) {
-      activeTab = tab;
       document.getElementById("tabSignals").classList.toggle("active", tab === "signals");
-      document.getElementById("tabCandidates").classList.toggle("active", tab === "candidates");
       document.getElementById("tabResults").classList.toggle("active", tab === "results");
-      document.getElementById("tabSources").classList.toggle("active", tab === "sources");
       document.getElementById("signalsPanel").classList.toggle("hidden", tab !== "signals");
-      document.getElementById("candidatesPanel").classList.toggle("hidden", tab !== "candidates");
       document.getElementById("resultsPanel").classList.toggle("hidden", tab !== "results");
-      document.getElementById("sourcesPanel").classList.toggle("hidden", tab !== "sources");
     }
     function market(question, id, domain) {
       return `
-        ${domain ? `<div class="tag">${esc(domain)}</div>` : ""}
-        <div class="q">${esc(question || id || "—")}</div>
-        ${id ? `<div class="id">#${esc(id)}</div>` : ""}
+        ${domain ? `<div class="tag">${domain}</div>` : ""}
+        <div class="q">${question || id || "—"}</div>
+        ${id ? `<div class="id">#${id}</div>` : ""}
       `;
     }
     function signed(n) {
       if (n == null) return "—";
       const v = Number(n);
       return `<span class="${v > 0 ? "green" : v < 0 ? "red" : ""}">${v.toFixed(4)}</span>`;
-    }
-    function lagLabel(minutes) {
-      if (minutes == null || Number.isNaN(Number(minutes))) return null;
-      const hours = Number(minutes) / 60;
-      if (Math.abs(hours) < 0.5) return "lag ~0h";
-      if (hours > 0) return `parent leads ~${Math.round(hours)}h`;
-      return `child leads ~${Math.round(Math.abs(hours))}h`;
     }
 
     function renderFilters(categories) {
@@ -375,35 +293,6 @@
       `).join("");
     }
 
-    function renderEnrichment(overview, latest) {
-      const candidates = overview.candidates || {};
-      const dynamics = overview.edge_dynamics || {};
-      const sources = latest?.source_summaries || {};
-      const sourceCount = Object.keys(sources).length;
-      const rows = [
-        ["Candidates total", candidates.total || 0],
-        ["Promoted", candidates.promoted || 0, "green"],
-        ["Proposed", candidates.proposed || 0, "amber"],
-        ["Rejected", candidates.rejected || 0, "red"],
-        ["Edges with lag", dynamics.with_lag || 0, "blue"],
-        ["Mean stability", dynamics.mean_stability],
-        ["Agent pairs (backtest)", latest?.pairs_agent_sourced || 0],
-        ["Source groups", sourceCount],
-      ];
-      document.getElementById("enrichment").innerHTML = rows.map(([label, value, color]) => `
-        <div class="card">
-          <div class="label">${label}</div>
-          <div class="value ${color || ""}">${
-            label === "Mean stability"
-              ? (value == null ? "—" : fmt(value, 2))
-              : nfmt(value)
-          }</div>
-        </div>
-      `).join("");
-      const countEl = document.getElementById("candidateCount");
-      if (countEl) countEl.textContent = String(candidates.total || 0);
-    }
-
     function renderAlerts(overview, latest) {
       const alerts = [];
       const snapshots = Number(overview.snapshots || 0);
@@ -412,8 +301,6 @@
       const winRate = Number(latest?.directional_win_rate || 0);
       const startedAt = latest?.started_at ? new Date(latest.started_at) : null;
       const ageHours = startedAt ? (Date.now() - startedAt.getTime()) / 3_600_000 : null;
-      const candidates = overview.candidates || {};
-      const dynamics = overview.edge_dynamics || {};
 
       if (!latest) {
         alerts.push(`<div class="alert">No backtest run yet. The research pipeline writes results every 6 hours after <strong>run_backtest.py</strong> completes.</div>`);
@@ -423,21 +310,6 @@
         alerts.push(`<div class="alert ok">Backtest baseline looks healthy: <strong>${(winRate * 100).toFixed(1)}%</strong> win rate on <strong>${actionable}</strong> actionable signals.</div>`);
       } else {
         alerts.push(`<div class="alert">Backtest win rate is <strong>${(winRate * 100).toFixed(1)}%</strong> on <strong>${actionable}</strong> signals — review thresholds before acting on live alerts.</div>`);
-      }
-
-      if (candidates.promoted > 0 || candidates.proposed > 0) {
-        alerts.push(
-          `<div class="alert ok">Graph enrichment active: <strong>${nfmt(candidates.promoted)}</strong> promoted, <strong>${nfmt(candidates.proposed)}</strong> proposed, <strong>${nfmt(candidates.rejected)}</strong> rejected candidates.</div>`
-        );
-      } else if (!candidates.unavailable) {
-        alerts.push(`<div class="alert">No candidate relationships yet. Wait for the next research pipeline run after migration 011.</div>`);
-      }
-
-      if (dynamics.with_lag > 0) {
-        alerts.push(
-          `<div class="alert ok"><strong>${nfmt(dynamics.with_lag)}</strong> edges have non-zero lead/lag` +
-          `${dynamics.mean_stability != null ? ` · mean stability <strong>${fmt(dynamics.mean_stability, 2)}</strong>` : ""}.</div>`
-        );
       }
 
       if (snapshots < 10_000) {
@@ -491,26 +363,18 @@
     }
 
     function renderOverview(data) {
-      const candidates = data.candidates || {};
-      const dynamics = data.edge_dynamics || {};
       const rows = [
         ["Markets", data.markets],
         ["Snapshots", data.snapshots],
         ["Relationships", data.relationships],
         ["Live Signals", data.signals, "blue"],
-        ["Candidates promoted", candidates.promoted || 0, "green"],
-        ["Candidates proposed", candidates.proposed || 0, "amber"],
-        ["Edges with lag", dynamics.with_lag || 0],
-        ["Mean stability", dynamics.mean_stability == null ? null : dynamics.mean_stability],
+        ["Deep History", data.markets_with_100_plus_snapshots],
+        ["Avg Snaps/Market", data.avg_snapshots_per_market],
       ];
       document.getElementById("overview").innerHTML = rows.map(([label, value, color]) => `
         <div class="card">
           <div class="label">${label}</div>
-          <div class="value ${color || ""}">${
-            label === "Mean stability"
-              ? (value == null ? "—" : fmt(value, 2))
-              : nfmt(value)
-          }</div>
+          <div class="value ${color || ""}">${nfmt(value)}</div>
         </div>
       `).join("");
     }
@@ -531,8 +395,6 @@
             <div class="metric"><div class="label">Wins</div><div class="value">${nfmt(data.directional_wins)}</div></div>
             <div class="metric"><div class="label">Edge Closed</div><div class="value ${cls(data.edge_closed_rate)}">${pct(data.edge_closed_rate)}</div></div>
             <div class="metric"><div class="label">Avg Reprice</div><div class="value">${data.mean_minutes_to_reprice == null ? "—" : Math.round(data.mean_minutes_to_reprice) + "m"}</div></div>
-            <div class="metric"><div class="label">Lag horizon</div><div class="value">${data.use_lag_horizon ? "on" : "off"}</div></div>
-            <div class="metric"><div class="label">Agent signals</div><div class="value blue">${nfmt(data.agent_signals)}</div></div>
           </div>
         </div>
         <div class="ring" style="--pct:${Math.round(rate * 100)}%">
@@ -542,72 +404,17 @@
     }
 
     function renderSignals(rows) {
-      const enriched = rows.filter((row) => row.explanation || row.lag_minutes || row.stability_score).length;
-      document.getElementById("signals").innerHTML = rows.length ? rows.map((row) => {
-        const lag = lagLabel(row.lag_minutes);
-        return `
-          <tr>
-            <td>
-              ${market(row.parent_question, row.parent_id, row.domain)}
-              <div class="explain">${esc(row.explanation || "No explanation yet — run research pipeline after enrichment deploy.")}</div>
-            </td>
-            <td>${market(row.child_question, row.child_id)}</td>
-            <td>
-              ${signed(row.edge)}
-              <div class="meta-row">
-                <span class="chip">exp ${fmt(row.expected, 3)}</span>
-                <span class="chip">obs ${fmt(row.observed, 3)}</span>
-              </div>
-            </td>
-            <td>
-              <div class="meta-row">
-                ${lag ? `<span class="chip">${esc(lag)}</span>` : `<span class="chip">lag pending</span>`}
-                <span class="chip">stab ${row.stability_score == null ? "—" : fmt(row.stability_score, 2)}</span>
-                ${row.lead_correlation != null ? `<span class="chip">lead r ${fmt(row.lead_correlation, 2)}</span>` : ""}
-              </div>
-            </td>
-            <td><span class="chip">${esc(row.discovery_source || "unknown")}</span></td>
-            <td>${fmt(row.confidence, 3)}</td>
-            <td><span class="badge ${row.signal || "HOLD"}">${row.signal || "HOLD"}</span></td>
-          </tr>
-        `;
-      }).join("") + (enriched === 0 ? `<tr><td colspan="7" class="empty">UI is on enrichment layout, but DB rows are still pre-enrichment. Trigger Research Pipeline, then refresh.</td></tr>` : "")
-      : `<tr><td colspan="7" class="empty">No live signals.</td></tr>`;
-    }
-
-    function renderSources(latest) {
-      const sources = latest?.source_summaries || {};
-      const entries = Object.entries(sources);
-      document.getElementById("sources").innerHTML = entries.length ? entries.map(([source, summary]) => `
+      document.getElementById("signals").innerHTML = rows.length ? rows.map((row) => `
         <tr>
-          <td><span class="chip">${esc(source)}</span></td>
-          <td>${nfmt(summary.actionable_signals)}</td>
-          <td>${nfmt(summary.directional_wins)}</td>
-          <td class="${cls(summary.directional_win_rate)}">${pct(summary.directional_win_rate)}</td>
+          <td>${market(row.parent_question, row.parent_id, row.domain)}</td>
+          <td>${market(row.child_question, row.child_id)}</td>
+          <td>${fmt(row.expected)}</td>
+          <td>${fmt(row.observed)}</td>
+          <td>${signed(row.edge)}</td>
+          <td>${fmt(row.confidence, 3)}</td>
+          <td><span class="badge ${row.signal || "HOLD"}">${row.signal || "HOLD"}</span></td>
         </tr>
-      `).join("") : `<tr><td colspan="4" class="empty">No source breakdown yet. Appears after a lag-aware backtest run saves diagnostics into config_json.</td></tr>`;
-    }
-
-    function renderCandidates(rows) {
-      document.getElementById("candidates").innerHTML = rows.length ? rows.map((row) => `
-        <tr>
-          <td>${market(row.parent_question, row.parent_id, row.parent_domain)}</td>
-          <td>${market(row.child_question, row.child_id, row.child_domain)}</td>
-          <td><span class="chip">${esc(row.source || "—")}</span></td>
-          <td><span class="badge ${esc(row.status || "proposed")}">${esc(row.status || "proposed")}</span></td>
-          <td>
-            <div class="meta-row">
-              <span class="chip">conf ${fmt(row.confidence, 2)}</span>
-              <span class="chip">r ${fmt(row.correlation_shrunk, 2)}</span>
-              <span class="chip">stab ${fmt(row.stability_score, 2)}</span>
-              ${row.lag_minutes != null ? `<span class="chip">${esc(lagLabel(row.lag_minutes) || "lag")}</span>` : ""}
-            </div>
-          </td>
-          <td>
-            <div class="explain">${esc(row.rationale || row.rejection_reason || "—")}</div>
-          </td>
-        </tr>
-      `).join("") : `<tr><td colspan="6" class="empty">No candidates yet. They appear after the research pipeline proposes/validates edges.</td></tr>`;
+      `).join("") : `<tr><td colspan="7" class="empty">No live signals.</td></tr>`;
     }
 
     function renderResults(rows) {
@@ -627,64 +434,29 @@
     async function load() {
       const dot = document.getElementById("dot");
       const status = document.getElementById("status");
-      const buildTag = document.getElementById("buildTag");
       dot.classList.remove("error");
       status.textContent = "Refreshing";
       try {
-        // Load independently so one slow endpoint cannot blank the whole page.
-        const healthP = api("/api/health").catch((e) => ({ error: e }));
-        const domainsP = api("/api/domains");
-        const latestP = api(`/api/backtest/latest${q()}`);
-        const signalsP = api(`/api/signals?limit=20${amp()}`);
-        const candidatesP = api(`/api/candidates?limit=30${amp()}`).catch(() => []);
-        const resultsP = api(`/api/backtest/results?limit=20${amp()}`);
-        const overviewP = api(`/api/overview${q()}`).catch((e) => ({
-          error: e,
-          markets: 0,
-          snapshots: 0,
-          relationships: 0,
-          signals: 0,
-          candidates: { total: 0, promoted: 0, proposed: 0, rejected: 0 },
-          edge_dynamics: {},
-        }));
-
-        const [health, overview, domains, latest, signals, candidates, results] = await Promise.all([
-          healthP,
-          overviewP,
-          domainsP,
-          latestP,
-          signalsP,
-          candidatesP,
-          resultsP,
+        const [overview, domains, latest, signals, results] = await Promise.all([
+          api(`/api/overview${q()}`),
+          api("/api/domains"),
+          api(`/api/backtest/latest${q()}`),
+          api(`/api/signals?limit=20${amp()}`),
+          api(`/api/backtest/results?limit=20${amp()}`),
         ]);
-
-        if (buildTag) {
-          if (health?.version) {
-            buildTag.textContent = `API v${health.version} · ${(health.features || []).includes("enrichment_panel") ? "enrichment live" : "old deploy"}`;
-          } else {
-            buildTag.textContent = "health check failed";
-          }
-        }
         renderFilters(domains.categories || DEFAULT_CATEGORIES);
-        renderEnrichment(overview, latest);
         renderAlerts(overview, latest);
         renderDomainCards(domains);
         renderOverview(overview);
         renderBacktest(latest);
         renderSignals(signals);
-        renderCandidates(candidates);
         renderResults(results);
-        renderSources(latest);
-        setTab(activeTab);
-        status.textContent = overview?.error
-          ? `Partial · overview slow · ${new Date().toLocaleTimeString()}`
-          : `Live · ${new Date().toLocaleTimeString()}`;
+        status.textContent = `Live · ${new Date().toLocaleTimeString()}`;
       } catch (error) {
         console.error(error);
         dot.classList.add("error");
         status.textContent = "Error";
-        if (buildTag) buildTag.textContent = "deploy/API error";
-        document.getElementById("backtestHero").innerHTML = `<div class="empty red">Failed to load: ${esc(error.message)}</div>`;
+        document.getElementById("backtestHero").innerHTML = `<div class="empty red">Failed to load: ${error.message}</div>`;
       }
     }
 

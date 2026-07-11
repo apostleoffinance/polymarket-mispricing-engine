@@ -7,7 +7,6 @@ import pandas as pd
 from config import (
     CORRELATION_THRESHOLD,
     MAX_EDGES_PER_DOMAIN,
-    MIN_STABILITY_SCORE,
     MIN_STRENGTH,
 )
 from models import DiscoveredEdge, MarketNode
@@ -31,17 +30,15 @@ def discover_edges_for_domain(
 
     for i, market_a_id in enumerate(market_ids):
         for market_b_id in market_ids[i + 1 :]:
-            # Cheap contemporaneous screen before expensive lead/lag + stability.
             stats = compute_pair_statistics(
                 price_matrix[market_a_id],
                 price_matrix[market_b_id],
-                include_dynamics=False,
             )
             if stats is None:
                 continue
             if abs(stats.correlation_shrunk) < CORRELATION_THRESHOLD:
                 continue
-            if stats.strength < MIN_STRENGTH * 0.8:
+            if stats.strength < MIN_STRENGTH:
                 continue
 
             parent_market, child_market = _orient_parent_child(
@@ -53,25 +50,6 @@ def discover_edges_for_domain(
             child_series = price_matrix[child_market.id]
             oriented_stats = compute_pair_statistics(parent_series, child_series)
             if oriented_stats is None:
-                continue
-
-            # If the child leads the parent, flip orientation.
-            reverse_stats = compute_pair_statistics(child_series, parent_series)
-            if (
-                reverse_stats is not None
-                and reverse_stats.lag_minutes > 0
-                and oriented_stats.lag_minutes <= 0
-                and abs(reverse_stats.lead_correlation)
-                >= abs(oriented_stats.lead_correlation)
-            ):
-                parent_market, child_market = child_market, parent_market
-                oriented_stats = reverse_stats
-
-            if abs(oriented_stats.correlation_shrunk) < CORRELATION_THRESHOLD:
-                continue
-            if oriented_stats.strength < MIN_STRENGTH:
-                continue
-            if oriented_stats.stability_score < MIN_STABILITY_SCORE:
                 continue
 
             rel_type = (
@@ -94,10 +72,6 @@ def discover_edges_for_domain(
                     intercept=oriented_stats.intercept,
                     conditional_slope=oriented_stats.conditional_slope,
                     n_observations=oriented_stats.n_observations,
-                    lag_minutes=oriented_stats.lag_minutes,
-                    lead_correlation=oriented_stats.lead_correlation,
-                    stability_score=oriented_stats.stability_score,
-                    discovery_source="within_domain_scan",
                 )
             )
 

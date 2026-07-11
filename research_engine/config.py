@@ -59,32 +59,7 @@ BACKTEST_WALK_FORWARD_ONLY: bool = True
 BACKTEST_WIN_REQUIRES_PNL: bool = True
 # None = all domains; set e.g. ("politics", "geopolitics") to exclude noisy domains.
 BACKTEST_DOMAINS: tuple[str, ...] | None = None
-# Use measured lead/lag to set evaluation horizon (max with BACKTEST_HORIZON_MINUTES).
-BACKTEST_USE_LAG_HORIZON: bool = True
-# Skip edges with known stability below this (0 = disabled; unknown/0.0 kept).
-BACKTEST_MIN_STABILITY: float = 0.35
 
 # Grid search defaults (run_optimize_backtest.py).
 OPTIMIZE_MIN_SIGNALS: int = 50
 OPTIMIZE_TARGET_WIN_RATE: float = 0.50
-
-# Edge dynamics: lead/lag and rolling stability.
-LEAD_LAG_MAX_HOURS: int = 12
-STABILITY_ROLLING_WINDOW: int = 24
-STABILITY_MIN_WINDOWS: int = 5
-MIN_STABILITY_SCORE: float = 0.35
-
-# Candidate relationship pipeline (propose → validate → promote).
-CANDIDATE_TOKEN_MIN_OVERLAP: int = 2
-CANDIDATE_MAX_PER_MARKET: int = 8
-CANDIDATE_MAX_PROPOSALS: int = 200
-VALIDATE_CROSS_DOMAIN: bool = True
-
-# Optional LLM hypothesis agent (writes candidates only; never promotes).
-HYPOTHESIS_LLM_ENABLED: bool = True
-# Try providers in order; skip any whose API key is missing.
-HYPOTHESIS_LLM_PROVIDERS: tuple[str, ...] = ("openai", "gemini")
-HYPOTHESIS_OPENAI_MODEL: str = "gpt-4o-mini"
-HYPOTHESIS_GEMINI_MODEL: str = "gemini-2.0-flash"
-HYPOTHESIS_LLM_MAX_MARKETS: int = 25
-HYPOTHESIS_LLM_MAX_SUGGESTIONS: int = 40

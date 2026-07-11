@@ -1,5 +1,6 @@
 import {
-  fetchCandidateStats,
+  fetchBacktestByDomain,
+  fetchLiveByDomain,
   normalizeDomain,
   sendError,
   sql,
@@ -11,7 +12,6 @@ export default async function handler(req, res) {
     const db = sql();
     const domain = normalizeDomain(req.query.domain);
 
-    // Keep this endpoint cheap — full-table snapshot scans were timing out on Vercel.
     const [markets] = domain
       ? await db`
           SELECT COUNT(*)::int AS count
@@ -22,6 +22,18 @@ export default async function handler(req, res) {
           SELECT COUNT(*)::int AS count
           FROM markets
           WHERE domain IS NOT NULL
+        `;
+
+    const [snapshots] = domain
+      ? await db`
+          SELECT COUNT(*)::int AS count
+          FROM probability_history ph
+          JOIN markets m ON m.id = ph.market_id
+          WHERE m.domain = ${domain}
+        `
+      : await db`
+          SELECT COUNT(*)::int AS count
+          FROM probability_history
         `;
 
     const [relationships] = domain
@@ -54,57 +66,31 @@ export default async function handler(req, res) {
             AND s.related_market ~ '^[0-9]+$'
         `;
 
-    let snapshots = 0;
-    try {
-      const [snap] = await db`
-        SELECT reltuples::bigint AS estimate
-        FROM pg_class
-        WHERE relname = 'probability_history'
-      `;
-      snapshots = toNumber(snap?.estimate);
-    } catch {
-      snapshots = 0;
-    }
-
-    let edgeDynamics = {
-      with_lag: 0,
-      mean_abs_lag_minutes: null,
-      mean_stability: null,
-    };
-    try {
-      const [dyn] = domain
-        ? await db`
-            SELECT
-              COUNT(*) FILTER (WHERE COALESCE(lag_minutes, 0) <> 0)::int AS with_lag,
-              AVG(ABS(lag_minutes)) FILTER (WHERE lag_minutes IS NOT NULL) AS mean_abs_lag,
-              AVG(stability_score) FILTER (WHERE stability_score IS NOT NULL) AS mean_stability
-            FROM market_relationships r
-            JOIN markets m ON m.id = r.parent_market_id
-            WHERE r.parent_market_id IS NOT NULL
-              AND m.domain = ${domain}
-          `
-        : await db`
-            SELECT
-              COUNT(*) FILTER (WHERE COALESCE(lag_minutes, 0) <> 0)::int AS with_lag,
-              AVG(ABS(lag_minutes)) FILTER (WHERE lag_minutes IS NOT NULL) AS mean_abs_lag,
-              AVG(stability_score) FILTER (WHERE stability_score IS NOT NULL) AS mean_stability
-            FROM market_relationships
-            WHERE parent_market_id IS NOT NULL
-          `;
-      edgeDynamics = {
-        with_lag: toNumber(dyn?.with_lag),
-        mean_abs_lag_minutes:
-          dyn?.mean_abs_lag === null || dyn?.mean_abs_lag === undefined
-            ? null
-            : Number(dyn.mean_abs_lag),
-        mean_stability:
-          dyn?.mean_stability === null || dyn?.mean_stability === undefined
-            ? null
-            : Number(dyn.mean_stability),
-      };
-    } catch (error) {
-      console.warn("edge dynamics unavailable:", error.message || error);
-    }
+    const [depth] = domain
+      ? await db`
+          SELECT
+            COUNT(*) FILTER (WHERE n >= 100)::int AS markets_100,
+            ROUND(AVG(n), 1) AS avg_snapshots,
+            MAX(n)::int AS max_snapshots
+          FROM (
+            SELECT ph.market_id, COUNT(*) AS n
+            FROM probability_history ph
+            JOIN markets m ON m.id = ph.market_id
+            WHERE m.domain = ${domain}
+            GROUP BY ph.market_id
+          ) t
+        `
+      : await db`
+          SELECT
+            COUNT(*) FILTER (WHERE n >= 100)::int AS markets_100,
+            ROUND(AVG(n), 1) AS avg_snapshots,
+            MAX(n)::int AS max_snapshots
+          FROM (
+            SELECT market_id, COUNT(*) AS n
+            FROM probability_history
+            GROUP BY market_id
+          ) t
+        `;
 
     const domainRows = await db`
       SELECT domain, COUNT(*)::int AS count
@@ -114,21 +100,22 @@ export default async function handler(req, res) {
       ORDER BY domain
     `;
 
-    const candidates = await fetchCandidateStats(db);
+    const liveByDomain = await fetchLiveByDomain(db);
+    const { latestRunId, rows: backtestByDomain } = await fetchBacktestByDomain(db);
 
     res.status(200).json({
       domain,
       markets: toNumber(markets.count),
-      snapshots,
+      snapshots: toNumber(snapshots.count),
       relationships: toNumber(relationships.count),
       signals: toNumber(signals.count),
-      markets_with_100_plus_snapshots: 0,
-      avg_snapshots_per_market: 0,
-      max_snapshots_per_market: 0,
+      markets_with_100_plus_snapshots: toNumber(depth?.markets_100),
+      avg_snapshots_per_market: toNumber(depth?.avg_snapshots),
+      max_snapshots_per_market: toNumber(depth?.max_snapshots),
       domains: Object.fromEntries(domainRows.map((row) => [row.domain, toNumber(row.count)])),
-      candidates,
-      edge_dynamics: edgeDynamics,
-      snapshot_count_estimated: true,
+      live_by_domain: liveByDomain,
+      backtest_by_domain: backtestByDomain,
+      latest_backtest_run_id: latestRunId,
     });
   } catch (error) {
     sendError(res, error);

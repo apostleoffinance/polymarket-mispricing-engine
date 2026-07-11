@@ -38,9 +38,6 @@ class MarketGraph:
             n_observations=edge.n_observations,
             parent_label=edge.parent_label,
             child_label=edge.child_label,
-            lag_minutes=edge.lag_minutes,
-            lead_correlation=edge.lead_correlation,
-            stability_score=edge.stability_score,
         )
 
     def neighbors(self, market_id: str) -> list[str]:

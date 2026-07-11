@@ -50,44 +50,11 @@ CREATE TABLE IF NOT EXISTS market_relationships (
     conditional_slope NUMERIC(20, 10),
     intercept         NUMERIC(20, 10),
     n_observations    INTEGER,
-    lag_minutes       INTEGER,
-    lead_correlation  NUMERIC(20, 10),
-    stability_score   NUMERIC(20, 10),
-    discovery_source  TEXT,
     created_at        TIMESTAMP DEFAULT NOW()
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS market_relationships_unique_edge
 ON market_relationships (parent_market_id, related_market_id, relationship_type);
-
-CREATE TABLE IF NOT EXISTS candidate_relationships (
-    id                   SERIAL PRIMARY KEY,
-    parent_market_id     TEXT NOT NULL,
-    child_market_id      TEXT NOT NULL,
-    parent_question      TEXT,
-    child_question       TEXT,
-    parent_domain        TEXT,
-    child_domain         TEXT,
-    source               TEXT NOT NULL,
-    rationale            TEXT,
-    status               TEXT NOT NULL DEFAULT 'proposed',
-    confidence           NUMERIC(20, 10),
-    correlation          NUMERIC(20, 10),
-    correlation_shrunk   NUMERIC(20, 10),
-    beta                 NUMERIC(20, 10),
-    intercept            NUMERIC(20, 10),
-    lag_minutes          INTEGER,
-    lead_correlation     NUMERIC(20, 10),
-    stability_score      NUMERIC(20, 10),
-    n_observations       INTEGER,
-    strength             NUMERIC(20, 10),
-    rejection_reason     TEXT,
-    created_at           TIMESTAMP DEFAULT NOW(),
-    updated_at           TIMESTAMP DEFAULT NOW()
-);
-
-CREATE INDEX IF NOT EXISTS candidate_relationships_status_idx
-    ON candidate_relationships (status);
 
 CREATE TABLE IF NOT EXISTS market_graph_metrics (
     market_id                TEXT PRIMARY KEY,

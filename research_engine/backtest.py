@@ -19,9 +19,7 @@ from config import (
     BACKTEST_HORIZON_MINUTES,
     BACKTEST_MIN_OBSERVATIONS,
     BACKTEST_MIN_SIGNAL_CONFIDENCE,
-    BACKTEST_MIN_STABILITY,
     BACKTEST_MIN_TRAIN_SNAPSHOTS,
-    BACKTEST_USE_LAG_HORIZON,
     BACKTEST_WALK_FORWARD_ONLY,
     BACKTEST_WIN_REQUIRES_PNL,
     MIN_STRENGTH,
@@ -46,8 +44,6 @@ class BacktestSettings:
     walk_forward_only: bool = BACKTEST_WALK_FORWARD_ONLY
     win_requires_pnl: bool = BACKTEST_WIN_REQUIRES_PNL
     domains: tuple[str, ...] | None = BACKTEST_DOMAINS
-    use_lag_horizon: bool = BACKTEST_USE_LAG_HORIZON
-    min_stability: float = BACKTEST_MIN_STABILITY
 
     @classmethod
     def from_config(cls) -> BacktestSettings:
@@ -76,9 +72,6 @@ class BacktestOutcome:
     minutes_to_reprice: float | None
     simple_pnl: float
     evaluation_mode: EvaluationMode
-    discovery_source: str = "within_domain_scan"
-    lag_minutes_used: int = 0
-    stability_score: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -105,11 +98,6 @@ class BacktestDiagnostics:
     walk_forward_summary: BacktestSummary
     replay_summary: BacktestSummary
     domain_summaries: dict[str, BacktestSummary]
-    source_summaries: dict[str, BacktestSummary]
-    pairs_agent_sourced: int
-    agent_signals: int
-    pairs_skipped_stability: int
-
 
 
 def compute_confidence(
@@ -146,7 +134,7 @@ def load_relationships(
         domain_filter = "AND m.domain = ANY(%s)"
         params.append(list(domains))
 
-    base_select = f"""
+    query = f"""
         SELECT
             r.parent_market_id,
             r.parent_market,
@@ -159,11 +147,7 @@ def load_relationships(
             COALESCE(r.intercept, 0),
             COALESCE(r.conditional_slope, r.beta, 0),
             COALESCE(r.n_observations, 0),
-            m.domain,
-            COALESCE(r.lag_minutes, 0),
-            COALESCE(r.lead_correlation, 0),
-            COALESCE(r.stability_score, 0),
-            COALESCE(r.discovery_source, 'within_domain_scan')
+            m.domain
         FROM market_relationships r
         LEFT JOIN markets m ON m.id = r.parent_market_id
         WHERE r.parent_market_id IS NOT NULL
@@ -171,46 +155,12 @@ def load_relationships(
           AND r.relationship_type LIKE 'discovered_%%'
           {domain_filter}
     """
-    legacy_select = f"""
-        SELECT
-            r.parent_market_id,
-            r.parent_market,
-            r.related_market_id,
-            r.related_market,
-            r.relationship_type,
-            COALESCE(r.strength, 0),
-            COALESCE(r.correlation, 0),
-            COALESCE(r.beta, 0),
-            COALESCE(r.intercept, 0),
-            COALESCE(r.conditional_slope, r.beta, 0),
-            COALESCE(r.n_observations, 0),
-            m.domain,
-            0,
-            0,
-            0,
-            'within_domain_scan'
-        FROM market_relationships r
-        LEFT JOIN markets m ON m.id = r.parent_market_id
-        WHERE r.parent_market_id IS NOT NULL
-          AND r.related_market_id IS NOT NULL
-          AND r.relationship_type LIKE 'discovered_%%'
-          {domain_filter}
-    """
-
     with conn.cursor() as cur:
-        try:
-            if params:
-                cur.execute(base_select, tuple(params))
-            else:
-                cur.execute(base_select)
-            rows = cur.fetchall()
-        except Exception:
-            conn.rollback()
-            if params:
-                cur.execute(legacy_select, tuple(params))
-            else:
-                cur.execute(legacy_select)
-            rows = cur.fetchall()
+        if params:
+            cur.execute(query, tuple(params))
+        else:
+            cur.execute(query)
+        rows = cur.fetchall()
 
     edges: list[DiscoveredEdge] = []
     for row in rows:
@@ -236,26 +186,11 @@ def load_relationships(
                 intercept=float(row[8]),
                 conditional_slope=float(row[9]),
                 n_observations=n_obs,
-                lag_minutes=int(row[12] or 0),
-                lead_correlation=float(row[13] or 0.0),
-                stability_score=float(row[14] or 0.0),
-                discovery_source=str(row[15] or "within_domain_scan"),
             )
         )
     return edges
 
 
-def _effective_horizon(settings: BacktestSettings, lag_minutes: int) -> int:
-    if not settings.use_lag_horizon:
-        return settings.horizon_minutes
-    lag_abs = abs(int(lag_minutes or 0))
-    if lag_abs <= 0:
-        return settings.horizon_minutes
-    return max(settings.horizon_minutes, lag_abs)
-
-
-def _is_agent_source(source: str) -> bool:
-    return source.startswith("llm_") or source in {"token_overlap"}
 def _aligned_pair_history(
     history: pd.DataFrame,
     parent_id: str,
@@ -361,9 +296,6 @@ def _append_outcome(
             minutes_to_reprice=(future_recorded_at - signal_time).total_seconds() / 60.0,
             simple_pnl=_simple_pnl(signal, child_yes, child_t_plus),
             evaluation_mode=evaluation_mode,
-            discovery_source=edge.discovery_source,
-            lag_minutes_used=horizon_minutes if settings.use_lag_horizon else 0,
-            stability_score=edge.stability_score,
         )
     )
 
@@ -386,7 +318,6 @@ def walk_forward_pair(
             train["parent"],
             train["child"],
             min_observations=settings.min_train_snapshots,
-            include_dynamics=True,
         )
         if stats is None:
             continue
@@ -395,12 +326,6 @@ def walk_forward_pair(
         if abs(stats.correlation_shrunk) < settings.correlation_threshold:
             continue
         if stats.strength < settings.min_strength:
-            continue
-        if (
-            settings.min_stability > 0
-            and stats.stability_score > 0
-            and stats.stability_score < settings.min_stability
-        ):
             continue
 
         parent_yes = float(aligned.loc[index, "parent"])
@@ -421,22 +346,13 @@ def walk_forward_pair(
             intercept=stats.intercept,
             conditional_slope=stats.conditional_slope,
             n_observations=stats.n_observations,
-            lag_minutes=stats.lag_minutes,
-            lead_correlation=stats.lead_correlation,
-            stability_score=stats.stability_score,
-            discovery_source=edge.discovery_source,
         )
         confidence = compute_confidence(virtual_edge, parent_centrality)
         signal = determine_backtest_signal(edge_at_t, confidence, settings)
         if signal == "HOLD":
             continue
 
-        # Prefer training-window lag; fall back to stored edge lag.
-        lag_for_horizon = (
-            stats.lag_minutes if stats.lag_minutes != 0 else edge.lag_minutes
-        )
-        horizon = _effective_horizon(settings, lag_for_horizon)
-        future = _future_row(aligned, index, horizon)
+        future = _future_row(aligned, index, settings.horizon_minutes)
         if future is None:
             continue
 
@@ -449,10 +365,10 @@ def walk_forward_pair(
 
         _append_outcome(
             outcomes,
-            edge=virtual_edge,
+            edge=edge,
             domain=domain,
             signal_time=signal_time,
-            horizon_minutes=horizon,
+            horizon_minutes=settings.horizon_minutes,
             signal=signal,
             expected=expected,
             child_yes=child_yes,
@@ -482,14 +398,6 @@ def replay_with_stored_model(
         return outcomes
     if edge.n_observations < settings.min_observations:
         return outcomes
-    if (
-        settings.min_stability > 0
-        and edge.stability_score > 0
-        and edge.stability_score < settings.min_stability
-    ):
-        return outcomes
-
-    horizon = _effective_horizon(settings, edge.lag_minutes)
 
     for index in range(len(aligned) - 1):
         parent_yes = float(aligned.loc[index, "parent"])
@@ -501,7 +409,7 @@ def replay_with_stored_model(
         if signal == "HOLD":
             continue
 
-        future = _future_row(aligned, index, horizon)
+        future = _future_row(aligned, index, settings.horizon_minutes)
         if future is None:
             continue
 
@@ -517,7 +425,7 @@ def replay_with_stored_model(
             edge=edge,
             domain=domain,
             signal_time=signal_time,
-            horizon_minutes=horizon,
+            horizon_minutes=settings.horizon_minutes,
             signal=signal,
             expected=expected,
             child_yes=child_yes,
@@ -531,6 +439,7 @@ def replay_with_stored_model(
         )
 
     return outcomes
+
 
 def summarize(outcomes: list[BacktestOutcome]) -> BacktestSummary:
     if not outcomes:
@@ -575,14 +484,6 @@ def summarize_by_domain(outcomes: list[BacktestOutcome]) -> dict[str, BacktestSu
     return {domain: summarize(rows) for domain, rows in sorted(by_domain.items())}
 
 
-def summarize_by_source(outcomes: list[BacktestOutcome]) -> dict[str, BacktestSummary]:
-    by_source: dict[str, list[BacktestOutcome]] = {}
-    for outcome in outcomes:
-        key = outcome.discovery_source or "within_domain_scan"
-        by_source.setdefault(key, []).append(outcome)
-    return {source: summarize(rows) for source, rows in sorted(by_source.items())}
-
-
 def run_backtest(
     edges: list[DiscoveredEdge],
     history: pd.DataFrame,
@@ -598,29 +499,12 @@ def run_backtest(
             for edge in edges
             if domain_by_parent.get(edge.parent_id) in domain_set
         ]
-
-    filtered_edges: list[DiscoveredEdge] = []
-    pairs_skipped_stability = 0
-    for edge in edges:
-        if (
-            settings.min_stability > 0
-            and edge.stability_score > 0
-            and edge.stability_score < settings.min_stability
-        ):
-            pairs_skipped_stability += 1
-            continue
-        filtered_edges.append(edge)
-    edges = filtered_edges
-
     all_outcomes: list[BacktestOutcome] = []
     walk_forward_outcomes: list[BacktestOutcome] = []
     replay_outcomes: list[BacktestOutcome] = []
     pairs_with_history = 0
     pairs_walk_forward = 0
     pairs_replay = 0
-    pairs_agent_sourced = sum(
-        1 for edge in edges if _is_agent_source(edge.discovery_source)
-    )
 
     for edge in edges:
         aligned = _aligned_pair_history(history, edge.parent_id, edge.child_id)
@@ -660,11 +544,6 @@ def run_backtest(
 
         all_outcomes.extend(pair_outcomes)
 
-    agent_outcomes = [
-        outcome
-        for outcome in all_outcomes
-        if _is_agent_source(outcome.discovery_source)
-    ]
     diagnostics = BacktestDiagnostics(
         pairs_evaluated=len(edges),
         pairs_with_history=pairs_with_history,
@@ -675,10 +554,6 @@ def run_backtest(
         walk_forward_summary=summarize(walk_forward_outcomes),
         replay_summary=summarize(replay_outcomes),
         domain_summaries=summarize_by_domain(all_outcomes),
-        source_summaries=summarize_by_source(all_outcomes),
-        pairs_agent_sourced=pairs_agent_sourced,
-        agent_signals=len(agent_outcomes),
-        pairs_skipped_stability=pairs_skipped_stability,
     )
 
     return all_outcomes, summarize(all_outcomes), diagnostics
@@ -697,8 +572,6 @@ def settings_to_dict(settings: BacktestSettings) -> dict:
         "walk_forward_only": settings.walk_forward_only,
         "win_requires_pnl": settings.win_requires_pnl,
         "domains": list(settings.domains) if settings.domains else None,
-        "use_lag_horizon": settings.use_lag_horizon,
-        "min_stability": settings.min_stability,
         "hourly_alignment": True,
     }
 
