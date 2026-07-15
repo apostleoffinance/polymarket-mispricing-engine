@@ -3,11 +3,13 @@ import {
   fetchBacktestByDomain,
   fetchLiveByDomain,
   sendError,
+  setNoStore,
   sql,
 } from "../lib/db.js";
 
 export default async function handler(_req, res) {
   try {
+    setNoStore(res);
     const db = sql();
     const live = await fetchLiveByDomain(db);
     const { latestRunId, rows: backtest } = await fetchBacktestByDomain(db);

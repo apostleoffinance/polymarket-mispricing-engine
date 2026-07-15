@@ -1,4 +1,4 @@
-import { normalizeDomain, sendError, sql, toIso, toNumber } from "../../lib/db.js";
+import { normalizeDomain, sendError, setNoStore, sql, toIso, toNumber } from "../../lib/db.js";
 
 function serializeRun(row, domain = null) {
   return {
@@ -22,6 +22,7 @@ function serializeRun(row, domain = null) {
 
 export default async function handler(req, res) {
   try {
+    setNoStore(res);
     const db = sql();
     const domain = normalizeDomain(req.query.domain);
     const [run] = await db`

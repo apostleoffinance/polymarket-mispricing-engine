@@ -3,12 +3,14 @@ import {
   fetchLiveByDomain,
   normalizeDomain,
   sendError,
+  setNoStore,
   sql,
   toNumber,
 } from "../lib/db.js";
 
 export default async function handler(req, res) {
   try {
+    setNoStore(res);
     const db = sql();
     const domain = normalizeDomain(req.query.domain);
 
@@ -52,18 +54,35 @@ export default async function handler(req, res) {
 
     const [signals] = domain
       ? await db`
-          SELECT COUNT(*)::int AS count
-          FROM arbitrage_signals s
-          LEFT JOIN markets parent_m ON parent_m.id = s.parent_market
-          WHERE s.parent_market ~ '^[0-9]+$'
-            AND s.related_market ~ '^[0-9]+$'
-            AND parent_m.domain = ${domain}
+          WITH latest AS (
+            SELECT DISTINCT ON (s.parent_market, s.related_market)
+              s.parent_market,
+              s.related_market,
+              s.signal,
+              parent_m.domain
+            FROM arbitrage_signals s
+            LEFT JOIN markets parent_m ON parent_m.id = s.parent_market
+            WHERE s.parent_market ~ '^[0-9]+$'
+              AND s.related_market ~ '^[0-9]+$'
+              AND parent_m.domain = ${domain}
+            ORDER BY s.parent_market, s.related_market, s.created_at DESC, s.id DESC
+          )
+          SELECT COUNT(*) FILTER (WHERE signal IN ('BUY', 'SELL'))::int AS count
+          FROM latest
         `
       : await db`
-          SELECT COUNT(*)::int AS count
-          FROM arbitrage_signals s
-          WHERE s.parent_market ~ '^[0-9]+$'
-            AND s.related_market ~ '^[0-9]+$'
+          WITH latest AS (
+            SELECT DISTINCT ON (s.parent_market, s.related_market)
+              s.parent_market,
+              s.related_market,
+              s.signal
+            FROM arbitrage_signals s
+            WHERE s.parent_market ~ '^[0-9]+$'
+              AND s.related_market ~ '^[0-9]+$'
+            ORDER BY s.parent_market, s.related_market, s.created_at DESC, s.id DESC
+          )
+          SELECT COUNT(*) FILTER (WHERE signal IN ('BUY', 'SELL'))::int AS count
+          FROM latest
         `;
 
     const [depth] = domain

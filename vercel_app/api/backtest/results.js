@@ -1,7 +1,8 @@
-import { normalizeDomain, sendError, sql, toIso, toNumber } from "../../lib/db.js";
+import { normalizeDomain, sendError, setNoStore, sql, toIso, toNumber } from "../../lib/db.js";
 
 export default async function handler(req, res) {
   try {
+    setNoStore(res);
     const db = sql();
     const domain = normalizeDomain(req.query.domain);
     const limit = Math.min(Math.max(Number(req.query.limit || 50), 1), 5000);

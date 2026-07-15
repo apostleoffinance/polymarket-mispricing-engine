@@ -31,7 +31,14 @@ export function toIso(value) {
   return new Date(value).toISOString();
 }
 
+export function setNoStore(res) {
+  res.setHeader("Cache-Control", "no-store, max-age=0, must-revalidate");
+  res.setHeader("CDN-Cache-Control", "no-store");
+  res.setHeader("Vercel-CDN-Cache-Control", "no-store");
+}
+
 export function sendError(res, error) {
+  setNoStore(res);
   console.error(error);
   res.status(500).json({
     error: "Internal Server Error",
@@ -41,17 +48,26 @@ export function sendError(res, error) {
 
 export async function fetchLiveByDomain(db = sql()) {
   const rows = await db`
+    WITH latest AS (
+      SELECT DISTINCT ON (s.parent_market, s.related_market)
+        s.parent_market,
+        s.related_market,
+        s.signal,
+        COALESCE(parent_m.domain, 'unknown') AS domain
+      FROM arbitrage_signals s
+      LEFT JOIN markets parent_m ON parent_m.id = s.parent_market
+      WHERE s.parent_market ~ '^[0-9]+$'
+        AND s.related_market ~ '^[0-9]+$'
+      ORDER BY s.parent_market, s.related_market, s.created_at DESC, s.id DESC
+    )
     SELECT
-      COALESCE(parent_m.domain, 'unknown') AS domain,
-      COUNT(*)::int AS signal_count,
-      COUNT(*) FILTER (WHERE s.signal = 'BUY')::int AS buy_count,
-      COUNT(*) FILTER (WHERE s.signal = 'SELL')::int AS sell_count,
-      COUNT(*) FILTER (WHERE s.signal = 'HOLD')::int AS hold_count
-    FROM arbitrage_signals s
-    LEFT JOIN markets parent_m ON parent_m.id = s.parent_market
-    WHERE s.parent_market ~ '^[0-9]+$'
-      AND s.related_market ~ '^[0-9]+$'
-    GROUP BY COALESCE(parent_m.domain, 'unknown')
+      domain,
+      COUNT(*) FILTER (WHERE signal IN ('BUY', 'SELL'))::int AS signal_count,
+      COUNT(*) FILTER (WHERE signal = 'BUY')::int AS buy_count,
+      COUNT(*) FILTER (WHERE signal = 'SELL')::int AS sell_count,
+      COUNT(*) FILTER (WHERE signal = 'HOLD')::int AS hold_count
+    FROM latest
+    GROUP BY domain
     ORDER BY domain
   `;
 
